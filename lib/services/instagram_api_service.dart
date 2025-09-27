@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/instagram_account.dart';
 import '../models/instagram_user.dart';
 import '../models/profile.dart';
@@ -39,10 +40,36 @@ class InstagramApiService {
     try {
       // First, get the login page to extract CSRF token and other required data
       final response = await _dio.get('/accounts/login/');
-      final csrfToken = _extractCsrfToken(response.data);
+      
+      if (kDebugMode) {
+        print('Login page response status: ${response.statusCode}');
+        print('Response headers: ${response.headers}');
+      }
+      
+      String? csrfToken = _extractCsrfToken(response.data);
       
       if (csrfToken == null) {
-        throw Exception('Failed to extract CSRF token from Instagram login page');
+        if (kDebugMode) {
+          print('CSRF token extraction failed. Response data length: ${response.data.toString().length}');
+          print('Looking for CSRF patterns in response...');
+        }
+        
+        // Try to extract CSRF from cookies as fallback
+        final cookies = _extractCookies(response.headers);
+        final csrfFromCookie = cookies['csrftoken'];
+        
+        if (csrfFromCookie != null && csrfFromCookie.isNotEmpty) {
+          if (kDebugMode) {
+            print('Using CSRF token from cookies: ${csrfFromCookie.substring(0, 10)}...');
+          }
+          csrfToken = csrfFromCookie;
+        } else {
+          throw Exception('Failed to extract CSRF token from Instagram login page. The page structure may have changed.');
+        }
+      }
+      
+      if (kDebugMode) {
+        print('Successfully extracted CSRF token: ${csrfToken.substring(0, 10)}...');
       }
 
       // Extract additional required data from the login page
@@ -264,18 +291,53 @@ class InstagramApiService {
 
   // Helper method to extract CSRF token from HTML
   String? _extractCsrfToken(String html) {
-    final regex = RegExp(r'"csrf_token":"([^"]+)"');
-    final match = regex.firstMatch(html);
-    return match?.group(1);
+    // Try multiple patterns to find CSRF token
+    final patterns = [
+      '"csrf_token":"([^"]+)"',
+      'csrf_token["\']?\\s*:\\s*["\']([^"\']+)["\']',
+      'name=["\']csrfmiddlewaretoken["\']\\s+value=["\']([^"\']+)["\']',
+      '<input[^>]*name=["\']csrfmiddlewaretoken["\']\\s+value=["\']([^"\']+)["\']',
+      'window\\._sharedData\\s*=\\s*\\{[^}]*"csrf_token":"([^"]+)"',
+      '"csrfToken":"([^"]+)"',
+      'csrf["\']?\\s*:\\s*["\']([^"\']+)["\']',
+    ];
+    
+    for (final pattern in patterns) {
+      final regex = RegExp(pattern, caseSensitive: false);
+      final match = regex.firstMatch(html);
+      if (match != null && match.group(1) != null && match.group(1)!.isNotEmpty) {
+        return match.group(1);
+      }
+    }
+    
+    // If no pattern matches, log a portion of the HTML for debugging
+    if (kDebugMode) {
+      print('CSRF extraction failed. HTML sample:');
+      print(html.length > 1000 ? html.substring(0, 1000) + '...' : html);
+    }
+    
+    return null;
   }
 
   // Helper method to extract rollout hash from HTML
   String? _extractRolloutHash(String html) {
-    final regex = RegExp(r'"rollout_hash":"([^"]+)"');
-    final match = regex.firstMatch(html);
-    return match?.group(1);
+    final patterns = [
+      '"rollout_hash":"([^"]+)"',
+      'rollout_hash["\']?\\s*:\\s*["\']([^"\']+)["\']',
+      '"rolloutHash":"([^"]+)"',
+      'rollout["\']?\\s*:\\s*["\']([^"\']+)["\']',
+    ];
+    
+    for (final pattern in patterns) {
+      final regex = RegExp(pattern, caseSensitive: false);
+      final match = regex.firstMatch(html);
+      if (match != null && match.group(1) != null && match.group(1)!.isNotEmpty) {
+        return match.group(1);
+      }
+    }
+    
+    return null;
   }
-
 
   // Helper method to extract cookies from response headers
   Map<String, String> _extractCookies(Headers headers) {
