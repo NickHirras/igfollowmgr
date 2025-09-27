@@ -425,27 +425,29 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   void _show2FADialog(BuildContext context, String username, String password, InstagramProvider provider) {
     showDialog(
       context: context,
-      builder: (context) => TwoFactorDialog(
-        username: username,
-        password: password,
-        provider: provider,
-        onSuccess: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Account added successfully with 2FA!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        },
-        onCancel: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('2FA verification cancelled'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        },
-      ),
+      builder: (context) {
+        return TwoFactorDialog(
+          username: username,
+          password: password,
+          provider: provider,
+          onSuccess: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Account added successfully with 2FA!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          },
+          onCancel: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('2FA verification cancelled'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

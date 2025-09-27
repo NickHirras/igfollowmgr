@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:cookie_jar/cookie_jar.dart';
 import '../models/instagram_account.dart';
 import '../models/instagram_user.dart';
 import '../models/profile.dart';
@@ -25,11 +27,15 @@ class InstagramApiService {
   InstagramApiService._internal();
 
   final Dio _dio = Dio();
+  final CookieJar _cookieJar = CookieJar();
   static const String _baseUrl = 'https://www.instagram.com';
+  String? _csrfToken;
+  String? _rolloutHash;
 
   // Initialize the service
   void initialize() {
     _dio.options.baseUrl = _baseUrl;
+    _dio.interceptors.add(CookieManager(_cookieJar));
     _dio.options.connectTimeout = const Duration(seconds: 30);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
     _dio.options.headers = {
@@ -63,41 +69,11 @@ class InstagramApiService {
   Future<InstagramAccount?> _performLogin(String username, String password, String? twoFactorCode) async {
     try {
       // First, get the login page to extract CSRF token and other required data
-      final response = await _dio.get('/accounts/login/');
-      
-      if (kDebugMode) {
-        print('Login page response status: ${response.statusCode}');
-        print('Response headers: ${response.headers}');
-      }
-      
-      String? csrfToken = _extractCsrfToken(response.data);
-      
-      if (csrfToken == null) {
-        if (kDebugMode) {
-          print('CSRF token extraction failed. Response data length: ${response.data.toString().length}');
-          print('Looking for CSRF patterns in response...');
-        }
-        
-        // Try to extract CSRF from cookies as fallback
-        final cookies = _extractCookies(response.headers);
-        final csrfFromCookie = cookies['csrftoken'];
-        
-        if (csrfFromCookie != null && csrfFromCookie.isNotEmpty) {
-          if (kDebugMode) {
-            print('Using CSRF token from cookies: ${csrfFromCookie.substring(0, 10)}...');
-          }
-          csrfToken = csrfFromCookie;
-        } else {
-          throw Exception('Failed to extract CSRF token from Instagram login page. The page structure may have changed.');
-        }
-      }
+      final csrfToken = await getCsrfToken();
       
       if (kDebugMode) {
         print('Successfully extracted CSRF token: ${csrfToken.substring(0, 10)}...');
       }
-
-      // Extract additional required data from the login page
-      final rolloutHash = _extractRolloutHash(response.data);
 
       // Prepare login data in the exact format Instagram expects
       final loginData = {
@@ -106,7 +82,7 @@ class InstagramApiService {
         'queryParams': '{}',
         'optIntoOneTap': 'false',
         'trustedDeviceRecords': '{}',
-        'rollout_hash': rolloutHash ?? '',
+        'rollout_hash': _rolloutHash ?? '',
       };
 
       // Set up headers for login - these must match exactly what the web interface sends
@@ -168,9 +144,24 @@ class InstagramApiService {
             if (kDebugMode) {
               print('2FA required. Response data: $responseData');
             }
+            // Automatically request SMS code to be sent
+            try {
+              final twoFactorIdentifier = responseData['two_factor_info']?['two_factor_identifier'];
+              if (twoFactorIdentifier != null) {
+                if (kDebugMode) {
+                  print('Requesting 2FA SMS for identifier: $twoFactorIdentifier');
+                }
+                await request2FASMS(username, twoFactorIdentifier);
+              }
+            } catch (e) {
+              if (kDebugMode) {
+                print('Failed to automatically request 2FA SMS: $e');
+              }
+              // Don't block the user, they can still enter a code from an authenticator app
+            }
             throw TwoFactorRequiredException(
               twoFactorInfo: responseData['two_factor_info'] ?? responseData,
-              message: 'Two-factor authentication is required. Please provide your 2FA code.',
+              message: 'Two-factor authentication is required. An SMS has been sent to your phone.',
             );
           } else {
             // Handle 2FA challenge
@@ -223,11 +214,22 @@ class InstagramApiService {
         
         if (mightBe2FA && twoFactorCode == null) {
           if (kDebugMode) {
-            print('400 error might be 2FA requirement');
+            print('400 error might be 2FA requirement. Requesting SMS.');
+          }
+          // Automatically request SMS code to be sent
+          try {
+            final twoFactorIdentifier = responseData['two_factor_info']?['two_factor_identifier'];
+            if (twoFactorIdentifier != null) {
+              await request2FASMS(username, twoFactorIdentifier);
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('Failed to automatically request 2FA SMS from 400 error: $e');
+            }
           }
           throw TwoFactorRequiredException(
             twoFactorInfo: responseData,
-            message: 'Two-factor authentication may be required. Please provide your 2FA code.',
+            message: 'Two-factor authentication may be required. An SMS has been sent to your phone.',
           );
         }
         
@@ -619,37 +621,89 @@ class InstagramApiService {
     }
   }
 
-  // Request 2FA code via SMS
-  Future<bool> request2FASMS(String username, String twoFactorIdentifier) async {
+  Future<void> request2FASMS(String username, String twoFactorIdentifier) async {
     try {
+      final csrfToken = await getCsrfToken();
       final response = await _dio.post(
         '/api/v1/accounts/send_two_factor_login_sms/',
         data: {
           'username': username,
           'two_factor_identifier': twoFactorIdentifier,
+          'device_id': 'android-${DateTime.now().millisecondsSinceEpoch}', // Generate a generic device ID
         },
+        options: Options(
+          validateStatus: (status) => status! < 500,
+          contentType: 'application/x-www-form-urlencoded',
+          headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-Instagram-AJAX': _rolloutHash ?? '1',
+            'X-ASBD-ID': '129477',
+            'X-IG-App-ID': '936619743392459',
+            'X-IG-WWW-Claim': '0',
+            'Referer': 'https://www.instagram.com/accounts/login/',
+            'Origin': 'https://www.instagram.com',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+          },
+        ),
       );
-      
-      return response.statusCode == 200 && response.data['status'] == 'ok';
+
+      if (response.statusCode != 200 || response.data?['status'] != 'ok') {
+        final errorMessage = response.data?['message'] ?? 'Failed to request SMS';
+        throw Exception('Failed to request 2FA SMS: $errorMessage');
+      }
+      if (kDebugMode) {
+        print('Successfully requested 2FA SMS. Response: ${response.data}');
+      }
     } catch (e) {
-      throw Exception('Failed to request 2FA SMS: $e');
+      throw Exception('Error requesting 2FA SMS: $e');
     }
   }
 
-  // Request 2FA code via email
-  Future<bool> request2FAEmail(String username, String twoFactorIdentifier) async {
+  Future<void> request2FAEmail(String twoFactorIdentifier) async {
+    // TODO: Implement email request if needed
+    throw UnimplementedError('Email 2FA request is not yet implemented.');
+  }
+
+  Future<String> getCsrfToken() async {
+    if (_csrfToken != null && _csrfToken!.isNotEmpty) {
+      return _csrfToken!;
+    }
+
     try {
-      final response = await _dio.post(
-        '/api/v1/accounts/send_two_factor_login_email/',
-        data: {
-          'username': username,
-          'two_factor_identifier': twoFactorIdentifier,
-        },
-      );
+      final response = await _dio.get('/accounts/login/');
+      if (kDebugMode) {
+        print('Login page response status: ${response.statusCode}');
+      }
       
-      return response.statusCode == 200 && response.data['status'] == 'ok';
+      String? csrfToken = _extractCsrfToken(response.data);
+      
+      if (csrfToken == null) {
+        final cookies = _extractCookies(response.headers);
+        final csrfFromCookie = cookies['csrftoken'];
+        
+        if (csrfFromCookie != null && csrfFromCookie.isNotEmpty) {
+          csrfToken = csrfFromCookie;
+        } else {
+          throw Exception('Failed to extract CSRF token from Instagram login page.');
+        }
+      }
+      
+      _csrfToken = csrfToken;
+      _rolloutHash = _extractRolloutHash(response.data);
+      return _csrfToken!;
     } catch (e) {
-      throw Exception('Failed to request 2FA email: $e');
+      throw Exception('Failed to fetch CSRF token: $e');
     }
   }
 }
+

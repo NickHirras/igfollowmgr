@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../providers/instagram_provider.dart';
+import '../services/instagram_api_service.dart';
 
 class TwoFactorDialog extends StatefulWidget {
   final String username;
@@ -25,6 +26,14 @@ class _TwoFactorDialogState extends State<TwoFactorDialog> {
   final TextEditingController _codeController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
+  String? _successMessage;
+  final InstagramApiService _apiService = InstagramApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService.initialize();
+  }
 
   @override
   void dispose() {
@@ -43,6 +52,7 @@ class _TwoFactorDialogState extends State<TwoFactorDialog> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _successMessage = null;
     });
 
     try {
@@ -165,6 +175,15 @@ class _TwoFactorDialogState extends State<TwoFactorDialog> {
               ),
             ),
           ],
+          if (_successMessage != null && !_isLoading)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Text(
+                _successMessage!,
+                style: const TextStyle(color: Colors.green),
+                textAlign: TextAlign.center,
+              ),
+            ),
           if (_isLoading) ...[
             const SizedBox(height: 16),
             Container(
@@ -198,6 +217,11 @@ class _TwoFactorDialogState extends State<TwoFactorDialog> {
               ),
             ),
           ],
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: _isLoading ? null : _resendCode,
+            child: const Text('Resend Code / Try another method'),
+          ),
         ],
       ),
       actions: [
@@ -220,5 +244,37 @@ class _TwoFactorDialogState extends State<TwoFactorDialog> {
         ),
       ],
     );
+  }
+
+  Future<void> _resendCode() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+    try {
+      final twoFactorInfo = widget.provider.getTwoFactorInfo();
+      if (twoFactorInfo != null) {
+        final twoFactorIdentifier = twoFactorInfo['two_factor_info']?['two_factor_identifier'] ?? twoFactorInfo['two_factor_identifier'];
+        if (twoFactorIdentifier != null) {
+          await _apiService.request2FASMS(widget.username, twoFactorIdentifier);
+          setState(() {
+            _successMessage = 'A new code has been sent to your phone.';
+          });
+        } else {
+          throw Exception('Could not find two_factor_identifier.');
+        }
+      } else {
+        throw Exception('Two factor info not available.');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to resend code: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 }

@@ -18,6 +18,7 @@ class InstagramProvider with ChangeNotifier {
   InstagramAccount? _currentAccount;
   bool _isLoading = false;
   String? _error;
+  Map<String, dynamic>? _twoFactorInfo;
 
   // Getters
   List<InstagramAccount> get accounts => _accounts;
@@ -27,6 +28,8 @@ class InstagramProvider with ChangeNotifier {
   InstagramAccount? get currentAccount => _currentAccount;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  Map<String, dynamic>? getTwoFactorInfo() => _twoFactorInfo;
 
   // Initialize provider
   Future<void> initialize() async {
@@ -77,6 +80,7 @@ class InstagramProvider with ChangeNotifier {
         print('2FA required: ${e.message}');
         print('2FA info: ${e.twoFactorInfo}');
       }
+      _twoFactorInfo = e.twoFactorInfo;
       return false;
     } catch (e) {
       _error = 'Login error: $e';
