@@ -1,0 +1,57 @@
+# GitHub Actions Configuration
+# This file contains shared configuration for all workflows
+
+# Flutter version to use across all workflows
+flutter_version: '3.24.5'
+
+# Java version for Android builds
+java_version: '17'
+
+# Build configurations
+build_configs:
+  android:
+    apk: true
+    aab: true
+    signing_required: false  # Set to true when signing is configured
+  ios:
+    archive: true
+    codesign_required: false  # Set to true when code signing is configured
+  web:
+    build: true
+  windows:
+    build: true
+  macos:
+    build: true
+    dmg: true
+  linux:
+    build: true
+    appimage: true
+
+# Test configurations
+test_configs:
+  unit_tests: true
+  integration_tests: false  # Set to true when integration tests are added
+  analyze: true
+  format_check: true
+
+# Release configurations
+release_configs:
+  create_release: true
+  upload_artifacts: true
+  draft_release: false
+  prerelease: false
+
+# Platform-specific requirements
+platform_requirements:
+  linux:
+    packages:
+      - clang
+      - cmake
+      - ninja-build
+      - pkg-config
+      - libgtk-3-dev
+      - liblzma-dev
+  android:
+    java_distribution: 'zulu'
+  ios:
+    xcode_version: 'latest'
