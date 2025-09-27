@@ -524,7 +524,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   } else {
                     // Check if 2FA is required
-                    if (provider.error?.contains('Two-factor authentication') == true) {
+                    final error = provider.error ?? '';
+                    if (error.contains('Two-factor authentication') || 
+                        error.contains('2FA') ||
+                        error.contains('verification code') ||
+                        error.contains('two-factor') ||
+                        error.contains('verification') ||
+                        error.contains('Login failed (400)')) {
+                      // Show 2FA dialog for 400 errors as Instagram might require 2FA
                       _show2FADialog(
                         context,
                         usernameController.text.trim(),

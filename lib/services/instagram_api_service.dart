@@ -146,11 +146,30 @@ class InstagramApiService {
       if (loginResponse.statusCode == 200) {
         final responseData = loginResponse.data;
         
-        // Check if 2FA is required
-        if (responseData['two_factor_required'] == true || responseData['two_factor_info'] != null) {
+        if (kDebugMode) {
+          print('Login response data: $responseData');
+        }
+        
+        // Check if 2FA is required - Instagram uses different response formats
+        final is2FARequired = responseData['two_factor_required'] == true || 
+                             responseData['two_factor_info'] != null ||
+                             responseData['checkpoint_url'] != null ||
+                             responseData['challenge'] != null ||
+                             (responseData['message'] != null && 
+                              (responseData['message'].toString().toLowerCase().contains('two-factor') ||
+                               responseData['message'].toString().toLowerCase().contains('verification code') ||
+                               responseData['message'].toString().toLowerCase().contains('2fa'))) ||
+                             responseData['status'] == 'fail' && 
+                             responseData['message'] != null &&
+                             responseData['message'].toString().toLowerCase().contains('verification');
+        
+        if (is2FARequired) {
           if (twoFactorCode == null) {
+            if (kDebugMode) {
+              print('2FA required. Response data: $responseData');
+            }
             throw TwoFactorRequiredException(
-              twoFactorInfo: responseData['two_factor_info'],
+              twoFactorInfo: responseData['two_factor_info'] ?? responseData,
               message: 'Two-factor authentication is required. Please provide your 2FA code.',
             );
           } else {
@@ -188,6 +207,30 @@ class InstagramApiService {
       } else if (loginResponse.statusCode == 400) {
         final responseData = loginResponse.data;
         final errorMessage = responseData['message'] ?? responseData['error_type'] ?? 'Bad request';
+        
+        if (kDebugMode) {
+          print('400 Error response: $responseData');
+        }
+        
+        // Check if this might be a 2FA requirement disguised as a 400 error
+        final mightBe2FA = responseData['two_factor_required'] == true || 
+                          responseData['two_factor_info'] != null ||
+                          responseData['checkpoint_url'] != null ||
+                          responseData['challenge'] != null ||
+                          (errorMessage.toString().toLowerCase().contains('verification')) ||
+                          (errorMessage.toString().toLowerCase().contains('two-factor')) ||
+                          (errorMessage.toString().toLowerCase().contains('2fa'));
+        
+        if (mightBe2FA && twoFactorCode == null) {
+          if (kDebugMode) {
+            print('400 error might be 2FA requirement');
+          }
+          throw TwoFactorRequiredException(
+            twoFactorInfo: responseData,
+            message: 'Two-factor authentication may be required. Please provide your 2FA code.',
+          );
+        }
+        
         throw Exception('Login failed (400): $errorMessage');
       } else {
         throw Exception('Login request failed with status: ${loginResponse.statusCode}');

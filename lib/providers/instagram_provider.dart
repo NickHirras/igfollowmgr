@@ -73,9 +73,16 @@ class InstagramProvider with ChangeNotifier {
       }
     } on TwoFactorRequiredException catch (e) {
       _error = e.message;
+      if (kDebugMode) {
+        print('2FA required: ${e.message}');
+        print('2FA info: ${e.twoFactorInfo}');
+      }
       return false;
     } catch (e) {
       _error = 'Login error: $e';
+      if (kDebugMode) {
+        print('Login error: $e');
+      }
       return false;
     } finally {
       _setLoading(false);
