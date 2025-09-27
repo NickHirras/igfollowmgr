@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'dart:io' show Platform;
 import 'providers/instagram_provider.dart';
 import 'screens/home_screen.dart';
 
 void main() {
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    // Initialize FFI for desktop platforms
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+  
   runApp(const MyApp());
 }
 

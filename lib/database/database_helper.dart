@@ -8,6 +8,7 @@ import '../models/profile.dart';
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   static Database? _database;
+  static const _dbVersion = 2; // Incremented version
 
   DatabaseHelper._internal();
 
@@ -20,11 +21,12 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDatabase() async {
-    String path = join(await getDatabasesPath(), 'igfollowmgr.db');
+    final path = join(await getDatabasesPath(), 'igfollowmgr.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: _dbVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -33,15 +35,15 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE instagram_accounts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
+        username TEXT NOT NULL UNIQUE,
         password TEXT,
-        session_id TEXT,
-        csrf_token TEXT,
-        is_active INTEGER NOT NULL DEFAULT 1,
-        last_login TEXT,
-        last_sync TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        sessionId TEXT,
+        csrfToken TEXT,
+        isActive INTEGER NOT NULL DEFAULT 1,
+        lastLogin TEXT,
+        lastSync TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
       )
     ''');
 
@@ -138,36 +140,70 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_sync_queue_status ON sync_queue(status)');
   }
 
-  // Instagram Account CRUD operations
-  Future<int> insertInstagramAccount(InstagramAccount account) async {
-    final db = await database;
-    return await db.insert('instagram_accounts', account.toJson());
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Simple upgrade strategy: drop and recreate
+      await db.execute('DROP TABLE IF EXISTS instagram_accounts');
+      await db.execute('DROP TABLE IF EXISTS profiles');
+      await db.execute('DROP TABLE IF EXISTS instagram_users');
+      await db.execute('DROP TABLE IF EXISTS followers');
+      await db.execute('DROP TABLE IF EXISTS following');
+      await db.execute('DROP TABLE IF EXISTS sync_queue');
+      await _onCreate(db, newVersion);
+    }
   }
 
-  Future<List<InstagramAccount>> getAllInstagramAccounts() async {
+  // Get a single Instagram account by username
+  Future<InstagramAccount?> getInstagramAccount(String username) async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('instagram_accounts');
-    return List.generate(maps.length, (i) => InstagramAccount.fromJson(maps[i]));
-  }
-
-  Future<InstagramAccount?> getInstagramAccountByUsername(String username) async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
+    final maps = await db.query(
       'instagram_accounts',
       where: 'username = ?',
       whereArgs: [username],
     );
+
     if (maps.isNotEmpty) {
-      return InstagramAccount.fromJson(maps.first);
+      final map = maps.first.map((key, value) => MapEntry(key, value));
+      map['isActive'] = map['isActive'] == 1;
+      return InstagramAccount.fromJson(map);
     }
     return null;
   }
 
+  // Get all Instagram accounts
+  Future<List<InstagramAccount>> getAllInstagramAccounts() async {
+    final db = await database;
+    final maps = await db.query('instagram_accounts');
+    
+    return maps.map((map) {
+      final newMap = map.map((key, value) => MapEntry(key, value));
+      newMap['isActive'] = newMap['isActive'] == 1;
+      return InstagramAccount.fromJson(newMap);
+    }).toList();
+  }
+
+  // Insert an Instagram account into the database
+  Future<int> insertInstagramAccount(InstagramAccount account) async {
+    final db = await database;
+    final map = account.toJson();
+    map['isActive'] = account.isActive ? 1 : 0;
+    
+    return await db.insert(
+      'instagram_accounts',
+      map,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  // Update an Instagram account
   Future<int> updateInstagramAccount(InstagramAccount account) async {
     final db = await database;
+    final map = account.toJson();
+    map['isActive'] = account.isActive ? 1 : 0;
+    
     return await db.update(
       'instagram_accounts',
-      account.toJson(),
+      map,
       where: 'id = ?',
       whereArgs: [account.id],
     );

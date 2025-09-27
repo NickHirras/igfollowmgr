@@ -63,6 +63,7 @@ dependencies:
   # JSON handling
   json_annotation: ^4.8.1
   dio_cookie_manager: ^3.3.0
+  sqflite_common_ffi: ^2.3.6
 
 dev_dependencies:
   flutter_test:
