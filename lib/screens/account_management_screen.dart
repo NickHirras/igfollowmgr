@@ -264,6 +264,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           children: [
             TextField(
               controller: usernameController,
+              enabled: !provider.isLoading,
               decoration: const InputDecoration(
                 labelText: 'Username',
                 prefixIcon: Icon(Icons.person),
@@ -273,6 +274,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
             const SizedBox(height: 16),
             TextField(
               controller: passwordController,
+              enabled: !provider.isLoading,
               decoration: const InputDecoration(
                 labelText: 'Password',
                 prefixIcon: Icon(Icons.lock),
@@ -304,6 +306,39 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                 ],
               ),
             ),
+            if (provider.isLoading) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.orange[700]!),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Logging in to Instagram...',
+                        style: TextStyle(
+                          color: Colors.orange[700],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -320,26 +355,35 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               
               if (mounted) {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Account added successfully!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } else if (!success && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(provider.error ?? 'Failed to add account'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Account added successfully!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(provider.error ?? 'Failed to add account'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             child: provider.isLoading 
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Logging in...'),
+                    ],
                   )
                 : const Text('Add Account'),
           ),

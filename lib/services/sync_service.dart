@@ -16,6 +16,7 @@ class SyncService {
 
   // Initialize the sync service
   Future<void> initialize() async {
+    _apiService.initialize();
     await Workmanager().initialize(
       callbackDispatcher,
       isInDebugMode: false,

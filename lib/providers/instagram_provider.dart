@@ -30,6 +30,7 @@ class InstagramProvider with ChangeNotifier {
 
   // Initialize provider
   Future<void> initialize() async {
+    _apiService.initialize();
     await _loadAccounts();
     await _syncService.initialize();
   }

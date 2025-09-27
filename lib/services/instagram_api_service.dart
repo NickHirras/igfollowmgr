@@ -18,46 +18,77 @@ class InstagramApiService {
     _dio.options.connectTimeout = const Duration(seconds: 30);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
     _dio.options.headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.5',
-      'Accept-Encoding': 'gzip, deflate',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
       'DNT': '1',
       'Connection': 'keep-alive',
       'Upgrade-Insecure-Requests': '1',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"',
     };
   }
 
   // Login to Instagram
   Future<InstagramAccount?> login(String username, String password) async {
     try {
-      // First, get the login page to extract CSRF token
+      // First, get the login page to extract CSRF token and other required data
       final response = await _dio.get('/accounts/login/');
       final csrfToken = _extractCsrfToken(response.data);
       
       if (csrfToken == null) {
-        throw Exception('Failed to extract CSRF token');
+        throw Exception('Failed to extract CSRF token from Instagram login page');
       }
 
-      // Prepare login data
+      // Extract additional required data from the login page
+      final rolloutHash = _extractRolloutHash(response.data);
+
+      // Prepare login data in the exact format Instagram expects
       final loginData = {
         'username': username,
-        'password': password,
+        'enc_password': '#PWD_INSTAGRAM_BROWSER:0:${DateTime.now().millisecondsSinceEpoch}:$password',
         'queryParams': '{}',
         'optIntoOneTap': 'false',
+        'trustedDeviceRecords': '{}',
+        'rollout_hash': rolloutHash ?? '',
       };
 
-      // Set up headers for login
-      _dio.options.headers['X-CSRFToken'] = csrfToken;
-      _dio.options.headers['X-Requested-With'] = 'XMLHttpRequest';
-      _dio.options.headers['Referer'] = 'https://www.instagram.com/accounts/login/';
+      // Set up headers for login - these must match exactly what the web interface sends
+      final loginHeaders = {
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-Instagram-AJAX': '1',
+        'X-ASBD-ID': '129477',
+        'X-IG-App-ID': '936619743392459',
+        'X-IG-WWW-Claim': '0',
+        'Referer': 'https://www.instagram.com/accounts/login/',
+        'Origin': 'https://www.instagram.com',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+      };
 
       // Perform login
       final loginResponse = await _dio.post(
         '/api/v1/web/accounts/login/ajax/',
         data: loginData,
         options: Options(
+          headers: loginHeaders,
           contentType: 'application/x-www-form-urlencoded',
+          validateStatus: (status) => status! < 500, // Accept 4xx status codes
         ),
       );
 
@@ -82,11 +113,30 @@ class InstagramApiService {
             );
 
             return account;
+          } else {
+            throw Exception('Failed to extract session ID from login response');
           }
+        } else {
+          final errorMessage = responseData['message'] ?? responseData['error_type'] ?? 'Authentication failed';
+          throw Exception('Login failed: $errorMessage');
         }
+      } else if (loginResponse.statusCode == 400) {
+        final responseData = loginResponse.data;
+        final errorMessage = responseData['message'] ?? responseData['error_type'] ?? 'Bad request';
+        throw Exception('Login failed (400): $errorMessage');
+      } else {
+        throw Exception('Login request failed with status: ${loginResponse.statusCode}');
       }
-      
-      throw Exception('Login failed: ${loginResponse.data}');
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionTimeout) {
+        throw Exception('Connection timeout. Please check your internet connection.');
+      } else if (e.type == DioExceptionType.receiveTimeout) {
+        throw Exception('Request timeout. Please try again.');
+      } else if (e.type == DioExceptionType.connectionError) {
+        throw Exception('Connection error. Please check your internet connection.');
+      } else {
+        throw Exception('Network error: ${e.message}');
+      }
     } catch (e) {
       throw Exception('Login error: $e');
     }
@@ -218,6 +268,14 @@ class InstagramApiService {
     final match = regex.firstMatch(html);
     return match?.group(1);
   }
+
+  // Helper method to extract rollout hash from HTML
+  String? _extractRolloutHash(String html) {
+    final regex = RegExp(r'"rollout_hash":"([^"]+)"');
+    final match = regex.firstMatch(html);
+    return match?.group(1);
+  }
+
 
   // Helper method to extract cookies from response headers
   Map<String, String> _extractCookies(Headers headers) {
