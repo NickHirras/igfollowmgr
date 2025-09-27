@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/instagram_provider.dart';
 import '../models/instagram_account.dart';
+import '../widgets/two_factor_dialog.dart';
 import 'account_management_screen.dart';
 import 'followers_screen.dart';
 import 'following_screen.dart';
@@ -506,24 +507,46 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ElevatedButton(
             onPressed: provider.isLoading ? null : () async {
-              final success = await provider.addAccount(
-                usernameController.text.trim(),
-                passwordController.text,
-              );
-              
-              if (mounted) {
-                Navigator.pop(context);
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Account added successfully!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } else {
+              try {
+                final success = await provider.addAccount(
+                  usernameController.text.trim(),
+                  passwordController.text,
+                );
+                
+                if (mounted) {
+                  Navigator.pop(context);
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Account added successfully!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } else {
+                    // Check if 2FA is required
+                    if (provider.error?.contains('Two-factor authentication') == true) {
+                      _show2FADialog(
+                        context,
+                        usernameController.text.trim(),
+                        passwordController.text,
+                        provider,
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(provider.error ?? 'Failed to add account'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(provider.error ?? 'Failed to add account'),
+                      content: Text('Login error: $e'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -546,6 +569,33 @@ class _HomeScreenState extends State<HomeScreen> {
                 : const Text('Add Account'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _show2FADialog(BuildContext context, String username, String password, InstagramProvider provider) {
+    showDialog(
+      context: context,
+      builder: (context) => TwoFactorDialog(
+        username: username,
+        password: password,
+        provider: provider,
+        onSuccess: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account added successfully with 2FA!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        },
+        onCancel: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('2FA verification cancelled'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        },
       ),
     );
   }

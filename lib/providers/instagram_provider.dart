@@ -71,8 +71,44 @@ class InstagramProvider with ChangeNotifier {
         _error = 'Login failed. Please check your credentials.';
         return false;
       }
+    } on TwoFactorRequiredException catch (e) {
+      _error = e.message;
+      return false;
     } catch (e) {
       _error = 'Login error: $e';
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Add account with 2FA
+  Future<bool> addAccountWith2FA(String username, String password, String twoFactorCode) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      // Attempt to login with 2FA
+      final account = await _apiService.loginWith2FA(username, password, twoFactorCode);
+      
+      if (account != null) {
+        // Save account to database
+        final accountId = await _dbHelper.insertInstagramAccount(account);
+        final savedAccount = account.copyWith(id: accountId);
+        
+        _accounts.add(savedAccount);
+        notifyListeners();
+        
+        // Start initial sync
+        await _syncAccount(savedAccount);
+        
+        return true;
+      } else {
+        _error = '2FA verification failed. Please check your code.';
+        return false;
+      }
+    } catch (e) {
+      _error = '2FA login error: $e';
       return false;
     } finally {
       _setLoading(false);

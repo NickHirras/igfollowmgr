@@ -5,6 +5,20 @@ import '../models/instagram_account.dart';
 import '../models/instagram_user.dart';
 import '../models/profile.dart';
 
+// Custom exception for 2FA requirement
+class TwoFactorRequiredException implements Exception {
+  final dynamic twoFactorInfo;
+  final String message;
+  
+  TwoFactorRequiredException({
+    required this.twoFactorInfo,
+    required this.message,
+  });
+  
+  @override
+  String toString() => message;
+}
+
 class InstagramApiService {
   static final InstagramApiService _instance = InstagramApiService._internal();
   factory InstagramApiService() => _instance;
@@ -37,6 +51,16 @@ class InstagramApiService {
 
   // Login to Instagram
   Future<InstagramAccount?> login(String username, String password) async {
+    return await _performLogin(username, password, null);
+  }
+
+  // Login with 2FA code
+  Future<InstagramAccount?> loginWith2FA(String username, String password, String twoFactorCode) async {
+    return await _performLogin(username, password, twoFactorCode);
+  }
+
+  // Internal login method that handles both regular and 2FA login
+  Future<InstagramAccount?> _performLogin(String username, String password, String? twoFactorCode) async {
     try {
       // First, get the login page to extract CSRF token and other required data
       final response = await _dio.get('/accounts/login/');
@@ -121,6 +145,20 @@ class InstagramApiService {
 
       if (loginResponse.statusCode == 200) {
         final responseData = loginResponse.data;
+        
+        // Check if 2FA is required
+        if (responseData['two_factor_required'] == true || responseData['two_factor_info'] != null) {
+          if (twoFactorCode == null) {
+            throw TwoFactorRequiredException(
+              twoFactorInfo: responseData['two_factor_info'],
+              message: 'Two-factor authentication is required. Please provide your 2FA code.',
+            );
+          } else {
+            // Handle 2FA challenge
+            return await _handleTwoFactorChallenge(username, password, csrfToken, twoFactorCode, responseData);
+          }
+        }
+        
         if (responseData['authenticated'] == true) {
           // Extract session cookies
           final cookies = _extractCookies(loginResponse.headers);
@@ -434,5 +472,141 @@ class InstagramApiService {
   void clearSession() {
     _dio.options.headers.remove('Cookie');
     _dio.options.headers.remove('X-CSRFToken');
+  }
+
+  // Handle 2FA challenge
+  Future<InstagramAccount?> _handleTwoFactorChallenge(
+    String username, 
+    String password, 
+    String csrfToken, 
+    String twoFactorCode, 
+    Map<String, dynamic> twoFactorInfo
+  ) async {
+    try {
+      // Extract 2FA identifier from the response
+      final twoFactorIdentifier = twoFactorInfo['two_factor_info']?['two_factor_identifier'] ?? 
+                                 twoFactorInfo['two_factor_identifier'];
+      
+      if (twoFactorIdentifier == null) {
+        throw Exception('Two-factor identifier not found in response');
+      }
+
+      // Prepare 2FA data
+      final twoFactorData = {
+        'username': username,
+        'verification_code': twoFactorCode,
+        'two_factor_identifier': twoFactorIdentifier,
+        'trust_this_device': '1',
+        'queryParams': '{}',
+      };
+
+      // Set up headers for 2FA
+      final twoFactorHeaders = {
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-Instagram-AJAX': '1',
+        'X-ASBD-ID': '129477',
+        'X-IG-App-ID': '936619743392459',
+        'X-IG-WWW-Claim': '0',
+        'Referer': 'https://www.instagram.com/accounts/login/',
+        'Origin': 'https://www.instagram.com',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+      };
+
+      // Submit 2FA code
+      final twoFactorResponse = await _dio.post(
+        '/api/v1/accounts/two_factor_login/',
+        data: twoFactorData,
+        options: Options(
+          headers: twoFactorHeaders,
+          contentType: 'application/x-www-form-urlencoded',
+          validateStatus: (status) => status! < 500,
+        ),
+      );
+
+      if (twoFactorResponse.statusCode == 200) {
+        final responseData = twoFactorResponse.data;
+        
+        if (responseData['authenticated'] == true) {
+          // Extract session cookies
+          final cookies = _extractCookies(twoFactorResponse.headers);
+          final sessionId = cookies['sessionid'];
+          
+          if (sessionId != null) {
+            // Create account object
+            final account = InstagramAccount(
+              username: username,
+              password: password, // In production, encrypt this
+              sessionId: sessionId,
+              csrfToken: csrfToken,
+              isActive: true,
+              lastLogin: DateTime.now(),
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            );
+
+            return account;
+          } else {
+            throw Exception('Failed to extract session ID from 2FA response');
+          }
+        } else {
+          final errorMessage = responseData['message'] ?? responseData['error_type'] ?? '2FA verification failed';
+          throw Exception('2FA verification failed: $errorMessage');
+        }
+      } else {
+        final responseData = twoFactorResponse.data;
+        final errorMessage = responseData['message'] ?? responseData['error_type'] ?? '2FA request failed';
+        throw Exception('2FA request failed: $errorMessage');
+      }
+    } catch (e) {
+      if (e is TwoFactorRequiredException) {
+        rethrow;
+      }
+      throw Exception('2FA challenge error: $e');
+    }
+  }
+
+  // Request 2FA code via SMS
+  Future<bool> request2FASMS(String username, String twoFactorIdentifier) async {
+    try {
+      final response = await _dio.post(
+        '/api/v1/accounts/send_two_factor_login_sms/',
+        data: {
+          'username': username,
+          'two_factor_identifier': twoFactorIdentifier,
+        },
+      );
+      
+      return response.statusCode == 200 && response.data['status'] == 'ok';
+    } catch (e) {
+      throw Exception('Failed to request 2FA SMS: $e');
+    }
+  }
+
+  // Request 2FA code via email
+  Future<bool> request2FAEmail(String username, String twoFactorIdentifier) async {
+    try {
+      final response = await _dio.post(
+        '/api/v1/accounts/send_two_factor_login_email/',
+        data: {
+          'username': username,
+          'two_factor_identifier': twoFactorIdentifier,
+        },
+      );
+      
+      return response.statusCode == 200 && response.data['status'] == 'ok';
+    } catch (e) {
+      throw Exception('Failed to request 2FA email: $e');
+    }
   }
 }
