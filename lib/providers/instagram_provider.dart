@@ -153,7 +153,7 @@ class InstagramProvider with ChangeNotifier {
         }
       }
     } catch (e) {
-      print('Error syncing profile data: $e');
+      // Error syncing profile data: $e
     }
   }
 
@@ -207,7 +207,7 @@ class InstagramProvider with ChangeNotifier {
       } while (maxId != null && totalSynced < maxTotal);
 
     } catch (e) {
-      print('Error syncing followers: $e');
+      // Error syncing followers: $e
     }
   }
 
@@ -261,7 +261,7 @@ class InstagramProvider with ChangeNotifier {
       } while (maxId != null && totalSynced < maxTotal);
 
     } catch (e) {
-      print('Error syncing following: $e');
+      // Error syncing following: $e
     }
   }
 

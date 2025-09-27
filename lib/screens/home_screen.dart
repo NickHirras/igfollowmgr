@@ -476,7 +476,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 passwordController.text,
               );
               
-              if (success) {
+              if (success && mounted) {
                 Navigator.pop(context);
               }
             },

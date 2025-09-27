@@ -3,9 +3,14 @@ import 'package:provider/provider.dart';
 import '../providers/instagram_provider.dart';
 import '../models/instagram_account.dart';
 
-class AccountManagementScreen extends StatelessWidget {
+class AccountManagementScreen extends StatefulWidget {
   const AccountManagementScreen({super.key});
 
+  @override
+  State<AccountManagementScreen> createState() => _AccountManagementScreenState();
+}
+
+class _AccountManagementScreenState extends State<AccountManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Consumer<InstagramProvider>(
@@ -313,7 +318,7 @@ class AccountManagementScreen extends StatelessWidget {
                 passwordController.text,
               );
               
-              if (success) {
+              if (mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -321,7 +326,7 @@ class AccountManagementScreen extends StatelessWidget {
                     backgroundColor: Colors.green,
                   ),
                 );
-              } else {
+              } else if (!success && mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(provider.error ?? 'Failed to add account'),
@@ -388,12 +393,14 @@ class AccountManagementScreen extends StatelessWidget {
             onPressed: () {
               provider.deleteAccount(account);
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Account deleted successfully'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Account deleted successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,

@@ -58,7 +58,7 @@ class SyncService {
       await _processSyncQueue();
       
     } catch (e) {
-      print('Sync error: $e');
+      // Sync error: $e
     } finally {
       _isSyncing = false;
     }
@@ -89,7 +89,7 @@ class SyncService {
       await _dbHelper.updateInstagramAccount(updatedAccount);
 
     } catch (e) {
-      print('Error syncing account ${account.username}: $e');
+      // Error syncing account ${account.username}: $e
     }
   }
 
@@ -112,7 +112,7 @@ class SyncService {
         }
       }
     } catch (e) {
-      print('Error syncing profile data: $e');
+      // Error syncing profile data: $e
     }
   }
 
@@ -166,7 +166,7 @@ class SyncService {
       } while (maxId != null && totalSynced < maxTotal);
 
     } catch (e) {
-      print('Error syncing followers: $e');
+      // Error syncing followers: $e
     }
   }
 
@@ -220,7 +220,7 @@ class SyncService {
       } while (maxId != null && totalSynced < maxTotal);
 
     } catch (e) {
-      print('Error syncing following: $e');
+      // Error syncing following: $e
     }
   }
 
@@ -233,7 +233,7 @@ class SyncService {
         await _processSyncOperation(operation);
       }
     } catch (e) {
-      print('Error processing sync queue: $e');
+      // Error processing sync queue: $e
     }
   }
 
@@ -272,7 +272,7 @@ class SyncService {
       }
 
     } catch (e) {
-      print('Error processing sync operation: $e');
+      // Error processing sync operation: $e
       await _dbHelper.updateSyncOperationStatus(operation['id'], 'failed');
     }
   }

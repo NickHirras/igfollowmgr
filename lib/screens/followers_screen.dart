@@ -130,7 +130,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
       child: ListTile(
         leading: CircleAvatar(
           radius: 25,
-          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
           backgroundImage: follower.profilePictureUrl != null
               ? CachedNetworkImageProvider(follower.profilePictureUrl!)
               : null,
@@ -282,7 +282,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
           children: [
             CircleAvatar(
               radius: 20,
-              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               backgroundImage: follower.profilePictureUrl != null
                   ? CachedNetworkImageProvider(follower.profilePictureUrl!)
                   : null,
