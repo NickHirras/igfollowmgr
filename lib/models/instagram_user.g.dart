@@ -8,17 +8,19 @@ part of 'instagram_user.dart';
 
 InstagramUser _$InstagramUserFromJson(Map<String, dynamic> json) =>
     InstagramUser(
-      id: (json['id'] as num?)?.toInt(),
+      id: (json['pk'] as num?)?.toInt(),
       username: json['username'] as String,
-      fullName: json['fullName'] as String?,
-      profilePictureUrl: json['profilePictureUrl'] as String?,
-      isVerified: json['isVerified'] as bool? ?? false,
-      isPrivate: json['isPrivate'] as bool? ?? false,
-      isBusiness: json['isBusiness'] as bool? ?? false,
-      externalUrl: json['externalUrl'] as String?,
-      followersCount: (json['followersCount'] as num?)?.toInt(),
-      followingCount: (json['followingCount'] as num?)?.toInt(),
-      postsCount: (json['postsCount'] as num?)?.toInt(),
+      fullName: json['full_name'] as String?,
+      profilePictureUrl: json['profile_pic_url'] as String?,
+      isVerified: json['is_verified'] as bool? ?? false,
+      isPrivate: json['is_private'] as bool? ?? false,
+      isBusiness: json['is_business_account'] as bool? ?? false,
+      externalUrl: json['external_url'] as String?,
+      followersCount: InstagramUser._extractCount(json['edge_followed_by']),
+      followingCount: InstagramUser._extractCount(json['edge_follow']),
+      postsCount: InstagramUser._extractCount(
+        json['edge_owner_to_timeline_media'],
+      ),
       biography: json['biography'] as String?,
       followedAt: json['followedAt'] == null
           ? null
@@ -29,23 +31,27 @@ InstagramUser _$InstagramUserFromJson(Map<String, dynamic> json) =>
       lastSeen: json['lastSeen'] == null
           ? null
           : DateTime.parse(json['lastSeen'] as String),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      createdAt: json['createdAt'] == null
+          ? null
+          : DateTime.parse(json['createdAt'] as String),
+      updatedAt: json['updatedAt'] == null
+          ? null
+          : DateTime.parse(json['updatedAt'] as String),
     );
 
 Map<String, dynamic> _$InstagramUserToJson(InstagramUser instance) =>
     <String, dynamic>{
-      'id': instance.id,
+      'pk': instance.id,
       'username': instance.username,
-      'fullName': instance.fullName,
-      'profilePictureUrl': instance.profilePictureUrl,
-      'isVerified': instance.isVerified,
-      'isPrivate': instance.isPrivate,
-      'isBusiness': instance.isBusiness,
-      'externalUrl': instance.externalUrl,
-      'followersCount': instance.followersCount,
-      'followingCount': instance.followingCount,
-      'postsCount': instance.postsCount,
+      'full_name': instance.fullName,
+      'profile_pic_url': instance.profilePictureUrl,
+      'is_verified': instance.isVerified,
+      'is_private': instance.isPrivate,
+      'is_business_account': instance.isBusiness,
+      'external_url': instance.externalUrl,
+      'edge_followed_by': instance.followersCount,
+      'edge_follow': instance.followingCount,
+      'edge_owner_to_timeline_media': instance.postsCount,
       'biography': instance.biography,
       'followedAt': instance.followedAt?.toIso8601String(),
       'followingAt': instance.followingAt?.toIso8601String(),

@@ -36,13 +36,14 @@ class InstagramApiService {
     _dio.options.baseUrl = _baseUrl;
     // Use a custom cookie interceptor that can handle malformed cookies
     _dio.interceptors.add(_CustomCookieInterceptor());
+    // Note: Brotli compression is handled automatically by Dio
     _dio.options.connectTimeout = const Duration(seconds: 30);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
     _dio.options.headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.9',
-      'Accept-Encoding': 'gzip, deflate, br',
+      'Accept-Encoding': 'gzip, deflate',
       'DNT': '1',
       'Connection': 'keep-alive',
       'Upgrade-Insecure-Requests': '1',
@@ -101,7 +102,7 @@ class InstagramApiService {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Encoding': 'gzip, deflate',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
@@ -289,6 +290,8 @@ class InstagramApiService {
       final url = '/api/v1/friendships/$userId/followers/';
       final queryParams = <String, dynamic>{
         'count': '200',
+        'search_surface': 'follow_list_page',
+        'enable_groups': 'true',
       };
       
       if (maxId != null) {
@@ -301,7 +304,30 @@ class InstagramApiService {
         print('[API] Query params: $queryParams');
       }
 
-      final response = await _dio.get(url, queryParameters: queryParams);
+      final response = await _dio.get(
+        url, 
+        queryParameters: queryParams,
+        options: Options(
+          headers: {
+            'X-IG-App-ID': '936619743392459',
+            'X-IG-WWW-Claim': '0',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-Instagram-AJAX': '1',
+            'X-ASBD-ID': '129477',
+            'Referer': 'https://www.instagram.com/',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+          },
+        ),
+      );
       
       if (kDebugMode) {
         print('[API] Followers response status: ${response.statusCode}');
@@ -340,6 +366,8 @@ class InstagramApiService {
       final url = '/api/v1/friendships/$userId/following/';
       final queryParams = <String, dynamic>{
         'count': '200',
+        'search_surface': 'follow_list_page',
+        'enable_groups': 'true',
       };
       
       if (maxId != null) {
@@ -352,7 +380,30 @@ class InstagramApiService {
         print('[API] Query params: $queryParams');
       }
 
-      final response = await _dio.get(url, queryParameters: queryParams);
+      final response = await _dio.get(
+        url, 
+        queryParameters: queryParams,
+        options: Options(
+          headers: {
+            'X-IG-App-ID': '936619743392459',
+            'X-IG-WWW-Claim': '0',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-Instagram-AJAX': '1',
+            'X-ASBD-ID': '129477',
+            'Referer': 'https://www.instagram.com/',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+          },
+        ),
+      );
       
       if (kDebugMode) {
         print('[API] Following response status: ${response.statusCode}');
@@ -617,7 +668,7 @@ class InstagramApiService {
 
       if (response.statusCode == 200) {
         final data = response.data;
-        if (data != null && data['user'] != null) {
+        if (data != null && data is Map && data['user'] != null) {
           if (kDebugMode) {
             print('[API] Session is valid');
           }
@@ -732,7 +783,7 @@ class InstagramApiService {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Encoding': 'gzip, deflate',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
@@ -849,7 +900,7 @@ class InstagramApiService {
             'Origin': 'https://www.instagram.com',
             'Accept': '*/*',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
+            'Accept-Encoding': 'gzip, deflate',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             'Sec-Fetch-Dest': 'empty',
             'Sec-Fetch-Mode': 'cors',

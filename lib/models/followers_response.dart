@@ -6,7 +6,7 @@ part 'followers_response.g.dart';
 @JsonSerializable()
 class FollowersResponse {
   final List<InstagramUser> users;
-  @JsonKey(name: 'next_max_id')
+  @JsonKey(name: 'next_max_id', fromJson: _nextMaxIdFromJson)
   final String? nextMaxId;
 
   FollowersResponse({required this.users, this.nextMaxId});
@@ -15,4 +15,9 @@ class FollowersResponse {
       _$FollowersResponseFromJson(json);
 
   Map<String, dynamic> toJson() => _$FollowersResponseToJson(this);
+
+  static String? _nextMaxIdFromJson(dynamic value) {
+    if (value == null) return null;
+    return value.toString();
+  }
 }
