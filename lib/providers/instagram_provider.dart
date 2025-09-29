@@ -133,16 +133,71 @@ class InstagramProvider with ChangeNotifier {
     _clearError();
 
     try {
+      if (kDebugMode) {
+        print('[Provider] Loading account data for: ${account.username}');
+        print('[Provider] Account ID: ${account.id}');
+      }
+      
       // Load profile data
       _currentProfile = await _dbHelper.getProfileByUsername(account.username);
+      if (kDebugMode) {
+        print('[Provider] Profile loaded: ${_currentProfile?.username}');
+      }
       
       // Load followers and following
       _followers = await _dbHelper.getFollowers(account.id!);
+      if (kDebugMode) {
+        print('[Provider] Followers loaded: ${_followers.length}');
+      }
+      
       _following = await _dbHelper.getFollowing(account.id!);
+      if (kDebugMode) {
+        print('[Provider] Following loaded: ${_following.length}');
+      }
       
       notifyListeners();
     } catch (e) {
-      _error = 'Failed to load account data: $e';
+      if (kDebugMode) {
+        print('[Provider] Error loading account data: $e');
+        print('[Provider] Error type: ${e.runtimeType}');
+      }
+      
+      // If it's a read-only error, try to reopen the database
+      if (e.toString().contains('read-only')) {
+        if (kDebugMode) {
+          print('[Provider] Attempting to reopen database...');
+        }
+        try {
+          await _dbHelper.reopen();
+          // Retry loading the data
+          _currentProfile = await _dbHelper.getProfileByUsername(account.username);
+          _followers = await _dbHelper.getFollowers(account.id!);
+          _following = await _dbHelper.getFollowing(account.id!);
+          notifyListeners();
+          return;
+        } catch (retryError) {
+          if (kDebugMode) {
+            print('[Provider] Retry failed: $retryError');
+            print('[Provider] Attempting to recreate database...');
+          }
+          try {
+            await _dbHelper.recreateDatabase();
+            // Retry loading the data after recreation
+            _currentProfile = await _dbHelper.getProfileByUsername(account.username);
+            _followers = await _dbHelper.getFollowers(account.id!);
+            _following = await _dbHelper.getFollowing(account.id!);
+            notifyListeners();
+            return;
+          } catch (recreateError) {
+            if (kDebugMode) {
+              print('[Provider] Database recreation failed: $recreateError');
+            }
+            _error = 'Failed to load account data: $recreateError';
+          }
+        }
+      } else {
+        _error = 'Failed to load account data: $e';
+      }
     } finally {
       _setLoading(false);
     }

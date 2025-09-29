@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/instagram_account.dart';
@@ -15,18 +16,24 @@ class DatabaseHelper {
   factory DatabaseHelper() => _instance;
 
   Future<Database> get database async {
-    if (_database != null) return _database!;
+    if (_database != null) {
+      print('[Database] Using existing database connection');
+      return _database!;
+    }
+    print('[Database] Creating new database connection');
     _database = await _initDatabase();
     return _database!;
   }
 
   Future<Database> _initDatabase() async {
     final path = join(await getDatabasesPath(), 'igfollowmgr.db');
+    print('[Database] Initializing database at: $path');
     return await openDatabase(
       path,
       version: _dbVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      readOnly: false, // Explicitly set to writable
     );
   }
 
@@ -275,21 +282,26 @@ class DatabaseHelper {
   }
 
   Future<List<InstagramUser>> getFollowers(int accountId) async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'followers',
-      where: 'account_id = ?',
-      whereArgs: [accountId],
-      orderBy: 'followed_at DESC',
-    );
-    return List.generate(maps.length, (i) {
-      final map = maps[i];
-      // Convert integer values back to booleans for SQLite compatibility
-      map['is_verified'] = map['is_verified'] == 1;
-      map['is_private'] = map['is_private'] == 1;
-      map['is_business'] = map['is_business'] == 1;
-      return InstagramUser.fromJson(map);
-    });
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'followers',
+        where: 'account_id = ?',
+        whereArgs: [accountId],
+        orderBy: 'followed_at DESC',
+      );
+      return List.generate(maps.length, (i) {
+        final map = maps[i];
+        // Convert integer values back to booleans for SQLite compatibility
+        map['is_verified'] = map['is_verified'] == 1;
+        map['is_private'] = map['is_private'] == 1;
+        map['is_business'] = map['is_business'] == 1;
+        return InstagramUser.fromJson(map);
+      });
+    } catch (e) {
+      print('[Database] Error getting followers for account $accountId: $e');
+      rethrow;
+    }
   }
 
   Future<InstagramUser?> getFollowerByUsername(int accountId, String username) async {
@@ -378,21 +390,26 @@ class DatabaseHelper {
   }
 
   Future<List<InstagramUser>> getFollowing(int accountId) async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'following',
-      where: 'account_id = ?',
-      whereArgs: [accountId],
-      orderBy: 'following_at DESC',
-    );
-    return List.generate(maps.length, (i) {
-      final map = maps[i];
-      // Convert integer values back to booleans for SQLite compatibility
-      map['is_verified'] = map['is_verified'] == 1;
-      map['is_private'] = map['is_private'] == 1;
-      map['is_business'] = map['is_business'] == 1;
-      return InstagramUser.fromJson(map);
-    });
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'following',
+        where: 'account_id = ?',
+        whereArgs: [accountId],
+        orderBy: 'following_at DESC',
+      );
+      return List.generate(maps.length, (i) {
+        final map = maps[i];
+        // Convert integer values back to booleans for SQLite compatibility
+        map['is_verified'] = map['is_verified'] == 1;
+        map['is_private'] = map['is_private'] == 1;
+        map['is_business'] = map['is_business'] == 1;
+        return InstagramUser.fromJson(map);
+      });
+    } catch (e) {
+      print('[Database] Error getting following for account $accountId: $e');
+      rethrow;
+    }
   }
 
   Future<InstagramUser?> getFollowingByUsername(int accountId, String username) async {
@@ -506,7 +523,30 @@ class DatabaseHelper {
   }
 
   Future<void> close() async {
-    final db = await database;
-    await db.close();
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+  }
+
+  Future<void> reopen() async {
+    await close();
+    _database = await _initDatabase();
+  }
+
+  Future<void> recreateDatabase() async {
+    await close();
+    
+    // Delete the existing database file
+    final path = join(await getDatabasesPath(), 'igfollowmgr.db');
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+      print('[Database] Deleted existing database file');
+    }
+    
+    // Create a new database
+    _database = await _initDatabase();
+    print('[Database] Recreated database');
   }
 }
