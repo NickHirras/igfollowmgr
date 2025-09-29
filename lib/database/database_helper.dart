@@ -250,13 +250,26 @@ class DatabaseHelper {
   // Followers CRUD operations
   Future<int> insertFollower(InstagramUser follower, int accountId) async {
     final db = await database;
-    final followerData = follower.toJson();
-    followerData['account_id'] = accountId;
     
-    // Convert boolean values to integers for SQLite
-    followerData['is_verified'] = follower.isVerified ? 1 : 0;
-    followerData['is_private'] = follower.isPrivate ? 1 : 0;
-    followerData['is_business'] = follower.isBusiness ? 1 : 0;
+    // Create a clean data map with only the fields we need for the database
+    final followerData = {
+      'account_id': accountId,
+      'username': follower.username,
+      'full_name': follower.fullName,
+      'profile_picture_url': follower.profilePictureUrl,
+      'is_verified': follower.isVerified ? 1 : 0,
+      'is_private': follower.isPrivate ? 1 : 0,
+      'is_business': follower.isBusiness ? 1 : 0,
+      'external_url': follower.externalUrl,
+      'followers_count': follower.followersCount,
+      'following_count': follower.followingCount,
+      'posts_count': follower.postsCount,
+      'biography': follower.biography,
+      'followed_at': follower.followedAt?.toIso8601String(),
+      'last_seen': follower.lastSeen?.toIso8601String(),
+      'created_at': follower.createdAt.toIso8601String(),
+      'updated_at': follower.updatedAt.toIso8601String(),
+    };
     
     return await db.insert('followers', followerData);
   }
@@ -299,13 +312,26 @@ class DatabaseHelper {
 
   Future<int> updateFollower(InstagramUser follower, int accountId) async {
     final db = await database;
-    final followerData = follower.toJson();
-    followerData['account_id'] = accountId;
     
-    // Convert boolean values to integers for SQLite
-    followerData['is_verified'] = follower.isVerified ? 1 : 0;
-    followerData['is_private'] = follower.isPrivate ? 1 : 0;
-    followerData['is_business'] = follower.isBusiness ? 1 : 0;
+    // Create a clean data map with only the fields we need for the database
+    final followerData = {
+      'account_id': accountId,
+      'username': follower.username,
+      'full_name': follower.fullName,
+      'profile_picture_url': follower.profilePictureUrl,
+      'is_verified': follower.isVerified ? 1 : 0,
+      'is_private': follower.isPrivate ? 1 : 0,
+      'is_business': follower.isBusiness ? 1 : 0,
+      'external_url': follower.externalUrl,
+      'followers_count': follower.followersCount,
+      'following_count': follower.followingCount,
+      'posts_count': follower.postsCount,
+      'biography': follower.biography,
+      'followed_at': follower.followedAt?.toIso8601String(),
+      'last_seen': follower.lastSeen?.toIso8601String(),
+      'created_at': follower.createdAt.toIso8601String(),
+      'updated_at': follower.updatedAt.toIso8601String(),
+    };
     
     return await db.update(
       'followers',
@@ -327,13 +353,26 @@ class DatabaseHelper {
   // Following CRUD operations
   Future<int> insertFollowing(InstagramUser following, int accountId) async {
     final db = await database;
-    final followingData = following.toJson();
-    followingData['account_id'] = accountId;
     
-    // Convert boolean values to integers for SQLite
-    followingData['is_verified'] = following.isVerified ? 1 : 0;
-    followingData['is_private'] = following.isPrivate ? 1 : 0;
-    followingData['is_business'] = following.isBusiness ? 1 : 0;
+    // Create a clean data map with only the fields we need for the database
+    final followingData = {
+      'account_id': accountId,
+      'username': following.username,
+      'full_name': following.fullName,
+      'profile_picture_url': following.profilePictureUrl,
+      'is_verified': following.isVerified ? 1 : 0,
+      'is_private': following.isPrivate ? 1 : 0,
+      'is_business': following.isBusiness ? 1 : 0,
+      'external_url': following.externalUrl,
+      'followers_count': following.followersCount,
+      'following_count': following.followingCount,
+      'posts_count': following.postsCount,
+      'biography': following.biography,
+      'following_at': following.followingAt?.toIso8601String(),
+      'last_seen': following.lastSeen?.toIso8601String(),
+      'created_at': following.createdAt.toIso8601String(),
+      'updated_at': following.updatedAt.toIso8601String(),
+    };
     
     return await db.insert('following', followingData);
   }
@@ -376,13 +415,26 @@ class DatabaseHelper {
 
   Future<int> updateFollowing(InstagramUser following, int accountId) async {
     final db = await database;
-    final followingData = following.toJson();
-    followingData['account_id'] = accountId;
     
-    // Convert boolean values to integers for SQLite
-    followingData['is_verified'] = following.isVerified ? 1 : 0;
-    followingData['is_private'] = following.isPrivate ? 1 : 0;
-    followingData['is_business'] = following.isBusiness ? 1 : 0;
+    // Create a clean data map with only the fields we need for the database
+    final followingData = {
+      'account_id': accountId,
+      'username': following.username,
+      'full_name': following.fullName,
+      'profile_picture_url': following.profilePictureUrl,
+      'is_verified': following.isVerified ? 1 : 0,
+      'is_private': following.isPrivate ? 1 : 0,
+      'is_business': following.isBusiness ? 1 : 0,
+      'external_url': following.externalUrl,
+      'followers_count': following.followersCount,
+      'following_count': following.followingCount,
+      'posts_count': following.postsCount,
+      'biography': following.biography,
+      'following_at': following.followingAt?.toIso8601String(),
+      'last_seen': following.lastSeen?.toIso8601String(),
+      'created_at': following.createdAt.toIso8601String(),
+      'updated_at': following.updatedAt.toIso8601String(),
+    };
     
     return await db.update(
       'following',

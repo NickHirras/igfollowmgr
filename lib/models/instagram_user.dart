@@ -16,7 +16,7 @@ class InstagramUser {
   final bool isVerified;
   @JsonKey(name: 'is_private')
   final bool isPrivate;
-  @JsonKey(name: 'is_business_account')
+  @JsonKey(name: 'is_business_account', defaultValue: false)
   final bool isBusiness;
   @JsonKey(name: 'external_url')
   final String? externalUrl;
@@ -56,7 +56,12 @@ class InstagramUser {
        updatedAt = updatedAt ?? DateTime.now();
 
   factory InstagramUser.fromJson(Map<String, dynamic> json) => _$InstagramUserFromJson(json);
-  Map<String, dynamic> toJson() => _$InstagramUserToJson(this);
+  Map<String, dynamic> toJson() {
+    final json = _$InstagramUserToJson(this);
+    // Ensure isBusiness is always included, even if it was missing from the original JSON
+    json['is_business_account'] = isBusiness;
+    return json;
+  }
 
   InstagramUser copyWith({
     int? id,
