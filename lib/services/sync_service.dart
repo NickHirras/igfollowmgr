@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 import '../database/database_helper.dart';
 import '../models/instagram_account.dart';
@@ -17,10 +19,18 @@ class SyncService {
   // Initialize the sync service
   Future<void> initialize() async {
     _apiService.initialize();
-    await Workmanager().initialize(
-      callbackDispatcher,
-      isInDebugMode: false,
-    );
+    if (Platform.isAndroid || Platform.isIOS) {
+      try {
+        await Workmanager().initialize(
+          callbackDispatcher,
+          isInDebugMode: kDebugMode,
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('Workmanager initialization failed: $e');
+        }
+      }
+    }
   }
 
   // Start periodic sync
