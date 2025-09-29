@@ -1,10 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart';
-import 'package:cookie_jar/cookie_jar.dart';
 import '../models/instagram_account.dart';
-import '../models/instagram_user.dart';
 import '../models/profile.dart';
 import '../models/followers_response.dart';
 
@@ -28,16 +25,17 @@ class InstagramApiService {
   InstagramApiService._internal();
 
   final Dio _dio = Dio();
-  final CookieJar _cookieJar = CookieJar();
   static const String _baseUrl = 'https://www.instagram.com';
   String? _csrfToken;
   String? _rolloutHash;
   DateTime? _lastSMSRequest;
+  DateTime? _lastSessionCheck;
 
   // Initialize the service
   void initialize() {
     _dio.options.baseUrl = _baseUrl;
-    _dio.interceptors.add(CookieManager(_cookieJar));
+    // Use a custom cookie interceptor that can handle malformed cookies
+    _dio.interceptors.add(_CustomCookieInterceptor());
     _dio.options.connectTimeout = const Duration(seconds: 30);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
     _dio.options.headers = {
@@ -280,35 +278,61 @@ class InstagramApiService {
   }
 
   // Get followers list
-  Future<FollowersResponse> getFollowers(String username, {String? maxId}) async {
+  Future<FollowersResponse> getFollowers(String username, {String? maxId, String? password}) async {
     try {
-      final url = '/api/v1/friendships/$username/followers/';
+      // First get the user ID
+      final userId = await getUserId(username, password: password);
+      if (userId == null) {
+        throw Exception('Failed to get user ID for $username');
+      }
+
+      final url = '/api/v1/friendships/$userId/followers/';
       final queryParams = <String, dynamic>{
         'count': '200',
-        'search_surface': 'follow_list_page',
       };
       
       if (maxId != null) {
         queryParams['max_id'] = maxId;
       }
 
+      if (kDebugMode) {
+        print('[API] Getting followers for $username (ID: $userId) with maxId: $maxId');
+        print('[API] Request URL: $url');
+        print('[API] Query params: $queryParams');
+      }
+
       final response = await _dio.get(url, queryParameters: queryParams);
       
-      if (response.statusCode == 200) {
-        return FollowersResponse.fromJson(response.data);
+      if (kDebugMode) {
+        print('[API] Followers response status: ${response.statusCode}');
+        print('[API] Followers response data: ${response.data}');
       }
       
+      if (response.statusCode == 200) {
+        final result = FollowersResponse.fromJson(response.data);
+        if (kDebugMode) {
+          print('[API] Parsed followers response: ${result.users.length} users, nextMaxId: ${result.nextMaxId}');
+        }
+        return result;
+      }
+      
+      if (kDebugMode) {
+        print('[API] Followers request failed with status: ${response.statusCode}');
+      }
       return FollowersResponse(users: [], nextMaxId: null);
     } catch (e) {
+      if (kDebugMode) {
+        print('[API] Followers request error: $e');
+      }
       throw Exception('Failed to get followers: $e');
     }
   }
 
   // Get following list
-  Future<FollowersResponse> getFollowing(String username, {String? maxId}) async {
+  Future<FollowersResponse> getFollowing(String username, {String? maxId, String? password}) async {
     try {
       // First get the user ID
-      final userId = await getUserId(username);
+      final userId = await getUserId(username, password: password);
       if (userId == null) {
         throw Exception('Failed to get user ID for $username');
       }
@@ -356,10 +380,21 @@ class InstagramApiService {
   }
 
   // Get user ID from username
-  Future<String?> getUserId(String username) async {
+  Future<String?> getUserId(String username, {String? password}) async {
     try {
       if (kDebugMode) {
         print('[API] Getting user ID for $username');
+      }
+
+      // Ensure we have a valid session if password is provided
+      if (password != null) {
+        final sessionValid = await ensureValidSession(username, password);
+        if (!sessionValid) {
+          if (kDebugMode) {
+            print('[API] Failed to ensure valid session for $username');
+          }
+          throw Exception('Session expired, please re-login');
+        }
       }
       
       final response = await _dio.get(
@@ -545,40 +580,111 @@ class InstagramApiService {
     }
   }
 
-  // Helper method to parse Instagram user data
-  InstagramUser? _parseInstagramUser(Map<String, dynamic> userData) {
-    try {
-      return InstagramUser(
-        username: userData['username'] ?? '',
-        fullName: userData['full_name'],
-        profilePictureUrl: userData['profile_pic_url'],
-        isVerified: userData['is_verified'] ?? false,
-        isPrivate: userData['is_private'] ?? false,
-        isBusiness: userData['is_business'] ?? false,
-        externalUrl: userData['external_url'],
-        followersCount: userData['follower_count'],
-        followingCount: userData['following_count'],
-        postsCount: userData['media_count'],
-        biography: userData['biography'],
-        followedAt: userData['followed_at'] != null 
-            ? DateTime.tryParse(userData['followed_at']) 
-            : null,
-        followingAt: userData['following_at'] != null 
-            ? DateTime.tryParse(userData['following_at']) 
-            : null,
-        lastSeen: DateTime.now(),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-    } catch (e) {
-      return null;
-    }
-  }
 
   // Set session for authenticated requests
   void setSession(String sessionId, String csrfToken) {
     _dio.options.headers['Cookie'] = 'sessionid=$sessionId';
     _dio.options.headers['X-CSRFToken'] = csrfToken;
+  }
+
+  // Verify if the current session is still valid
+  Future<bool> isSessionValid() async {
+    try {
+      if (kDebugMode) {
+        print('[API] Checking session validity...');
+      }
+      
+      // Check if we have a recent session check
+      if (_lastSessionCheck != null && 
+          DateTime.now().difference(_lastSessionCheck!).inMinutes < 5) {
+        if (kDebugMode) {
+          print('[API] Session check was recent, assuming valid');
+        }
+        return true;
+      }
+
+      // Try to access a protected endpoint to verify session
+      final response = await _dio.get(
+        '/api/v1/accounts/current_user/',
+        options: Options(
+          headers: {
+            'X-IG-App-ID': '936619743392459',
+          },
+        ),
+      );
+
+      _lastSessionCheck = DateTime.now();
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data != null && data['user'] != null) {
+          if (kDebugMode) {
+            print('[API] Session is valid');
+          }
+          return true;
+        }
+      }
+
+      if (kDebugMode) {
+        print('[API] Session is invalid. Status: ${response.statusCode}');
+      }
+      return false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('[API] Session validation error: $e');
+      }
+      _lastSessionCheck = DateTime.now();
+      return false;
+    }
+  }
+
+  // Refresh session by re-logging in
+  Future<bool> refreshSession(String username, String password) async {
+    try {
+      if (kDebugMode) {
+        print('[API] Refreshing session for $username...');
+      }
+      
+      // Clear current session
+      _dio.options.headers.remove('Cookie');
+      _dio.options.headers.remove('X-CSRFToken');
+      _csrfToken = null;
+      _lastSessionCheck = null;
+
+      // Re-login
+      final account = await login(username, password);
+      if (account != null) {
+        if (kDebugMode) {
+          print('[API] Session refreshed successfully');
+        }
+        return true;
+      }
+
+      if (kDebugMode) {
+        print('[API] Failed to refresh session');
+      }
+      return false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('[API] Session refresh error: $e');
+      }
+      return false;
+    }
+  }
+
+  // Ensure valid session before making API calls
+  Future<bool> ensureValidSession(String username, String password) async {
+    // Check if session is valid
+    final isValid = await isSessionValid();
+    if (isValid) {
+      return true;
+    }
+
+    // Session is invalid, try to refresh
+    if (kDebugMode) {
+      print('[API] Session invalid, attempting to refresh...');
+    }
+    return await refreshSession(username, password);
   }
 
   // Clear session
@@ -802,6 +908,70 @@ class InstagramApiService {
     } catch (e) {
       throw Exception('Failed to fetch CSRF token: $e');
     }
+  }
+}
+
+// Custom cookie interceptor that can handle malformed cookies
+class _CustomCookieInterceptor extends Interceptor {
+  final Map<String, String> _cookies = {};
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    // Add cookies to request headers
+    if (_cookies.isNotEmpty) {
+      final cookieString = _cookies.entries
+          .map((e) => '${e.key}=${e.value}')
+          .join('; ');
+      options.headers['Cookie'] = cookieString;
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    // Parse Set-Cookie headers and store them
+    final setCookieHeaders = response.headers['set-cookie'];
+    if (setCookieHeaders != null) {
+      for (final cookieHeader in setCookieHeaders) {
+        try {
+          _parseCookie(cookieHeader);
+        } catch (e) {
+          // Skip malformed cookies instead of crashing
+          if (kDebugMode) {
+            print('[CookieInterceptor] Skipping malformed cookie: $cookieHeader');
+          }
+        }
+      }
+    }
+    handler.next(response);
+  }
+
+  void _parseCookie(String cookieHeader) {
+    // Split by semicolon and take the first part (name=value)
+    final parts = cookieHeader.split(';');
+    if (parts.isNotEmpty) {
+      final nameValue = parts[0].trim();
+      final equalIndex = nameValue.indexOf('=');
+      if (equalIndex > 0) {
+        final name = nameValue.substring(0, equalIndex).trim();
+        final value = nameValue.substring(equalIndex + 1).trim();
+        
+        // Clean up the value by removing problematic characters
+        final cleanValue = _cleanCookieValue(value);
+        if (cleanValue.isNotEmpty) {
+          _cookies[name] = cleanValue;
+        }
+      }
+    }
+  }
+
+  String _cleanCookieValue(String value) {
+    // Remove or replace problematic characters
+    return value
+        .replaceAll(RegExp(r'[^\x20-\x7E]'), '') // Remove non-printable characters
+        .replaceAll('\\054', ',') // Replace \054 with comma
+        .replaceAll('\\', '') // Remove backslashes
+        .trim();
   }
 }
 

@@ -132,11 +132,10 @@ class SyncService {
     try {
       String? maxId;
       int totalSynced = 0;
-      const int maxPerRequest = 200;
       const int maxTotal = 10000; // Limit to prevent excessive API calls
 
       do {
-        final response = await _apiService.getFollowers(account.username, maxId: maxId);
+        final response = await _apiService.getFollowers(account.username, maxId: maxId, password: account.password);
         final followers = response.users;
         
         if (kDebugMode) {
@@ -179,7 +178,7 @@ class SyncService {
         // Add delay to avoid rate limiting
         await Future.delayed(const Duration(seconds: 2));
 
-      } while (maxId != null && totalSynced < maxTotal);
+           } while (totalSynced < maxTotal);
 
     } catch (e) {
       // Error syncing followers: $e
@@ -191,11 +190,10 @@ class SyncService {
     try {
       String? maxId;
       int totalSynced = 0;
-      const int maxPerRequest = 200;
       const int maxTotal = 10000; // Limit to prevent excessive API calls
 
       do {
-        final response = await _apiService.getFollowing(account.username, maxId: maxId);
+        final response = await _apiService.getFollowing(account.username, maxId: maxId, password: account.password);
         final following = response.users;
         
         if (kDebugMode) {
@@ -238,7 +236,7 @@ class SyncService {
         // Add delay to avoid rate limiting
         await Future.delayed(const Duration(seconds: 2));
 
-      } while (maxId != null && totalSynced < maxTotal);
+           } while (totalSynced < maxTotal);
 
     } catch (e) {
       // Error syncing following: $e

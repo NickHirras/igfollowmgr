@@ -213,7 +213,7 @@ class InstagramProvider with ChangeNotifier {
       const int maxTotal = 10000; // Limit to prevent excessive API calls
 
       do {
-        final response = await _apiService.getFollowers(account.username, maxId: maxId);
+        final response = await _apiService.getFollowers(account.username, maxId: maxId, password: account.password);
         final followers = response.users;
         
         if (kDebugMode) {
@@ -279,7 +279,7 @@ class InstagramProvider with ChangeNotifier {
           print('[Provider] Fetching following batch ${totalSynced ~/ 200 + 1} for ${account.username}');
         }
         
-        final response = await _apiService.getFollowing(account.username, maxId: maxId);
+        final response = await _apiService.getFollowing(account.username, maxId: maxId, password: account.password);
         final following = response.users;
         
         if (kDebugMode) {
