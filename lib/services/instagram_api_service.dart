@@ -32,6 +32,7 @@ class InstagramApiService {
   static const String _baseUrl = 'https://www.instagram.com';
   String? _csrfToken;
   String? _rolloutHash;
+  DateTime? _lastSMSRequest;
 
   // Initialize the service
   void initialize() {
@@ -76,6 +77,9 @@ class InstagramApiService {
         print('Successfully extracted CSRF token: ${csrfToken.substring(0, 10)}...');
       }
 
+      // Add a small delay to make requests look more human-like
+      await Future.delayed(Duration(milliseconds: 500 + (DateTime.now().millisecondsSinceEpoch % 1000)));
+
       // Prepare login data in the exact format Instagram expects
       final loginData = {
         'username': username,
@@ -100,7 +104,7 @@ class InstagramApiService {
         'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -221,12 +225,16 @@ class InstagramApiService {
           try {
             final twoFactorIdentifier = responseData['two_factor_info']?['two_factor_identifier'];
             if (twoFactorIdentifier != null) {
+              if (kDebugMode) {
+                print('Requesting 2FA SMS for identifier: $twoFactorIdentifier');
+              }
               await request2FASMS(username, twoFactorIdentifier);
             }
           } catch (e) {
             if (kDebugMode) {
               print('Failed to automatically request 2FA SMS from 400 error: $e');
             }
+            // Don't block the user, they can still enter a code from an authenticator app
           }
           throw TwoFactorRequiredException(
             twoFactorInfo: responseData,
@@ -299,7 +307,13 @@ class InstagramApiService {
   // Get following list
   Future<FollowersResponse> getFollowing(String username, {String? maxId}) async {
     try {
-      final url = '/api/v1/friendships/$username/following/';
+      // First get the user ID
+      final userId = await getUserId(username);
+      if (userId == null) {
+        throw Exception('Failed to get user ID for $username');
+      }
+
+      final url = '/api/v1/friendships/$userId/following/';
       final queryParams = <String, dynamic>{
         'count': '200',
       };
@@ -308,15 +322,93 @@ class InstagramApiService {
         queryParams['max_id'] = maxId;
       }
 
+      if (kDebugMode) {
+        print('[API] Getting following for $username (ID: $userId) with maxId: $maxId');
+        print('[API] Request URL: $url');
+        print('[API] Query params: $queryParams');
+      }
+
       final response = await _dio.get(url, queryParameters: queryParams);
       
-      if (response.statusCode == 200) {
-        return FollowersResponse.fromJson(response.data);
+      if (kDebugMode) {
+        print('[API] Following response status: ${response.statusCode}');
+        print('[API] Following response data: ${response.data}');
       }
       
+      if (response.statusCode == 200) {
+        final result = FollowersResponse.fromJson(response.data);
+        if (kDebugMode) {
+          print('[API] Parsed following response: ${result.users.length} users, nextMaxId: ${result.nextMaxId}');
+        }
+        return result;
+      }
+      
+      if (kDebugMode) {
+        print('[API] Following request failed with status: ${response.statusCode}');
+      }
       return FollowersResponse(users: [], nextMaxId: null);
     } catch (e) {
+      if (kDebugMode) {
+        print('[API] Following request error: $e');
+      }
       throw Exception('Failed to get following: $e');
+    }
+  }
+
+  // Get user ID from username
+  Future<String?> getUserId(String username) async {
+    try {
+      if (kDebugMode) {
+        print('[API] Getting user ID for $username');
+      }
+      
+      final response = await _dio.get(
+        '/api/v1/users/web_profile_info/',
+        queryParameters: {'username': username},
+        options: Options(
+          headers: {
+            'X-IG-App-ID': '936619743392459',
+          },
+        ),
+      );
+
+      if (kDebugMode) {
+        print('[API] User ID response status: ${response.statusCode}');
+        print('[API] User ID response data: ${response.data}');
+      }
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data != null && data['data'] != null && data['data']['user'] != null) {
+          final userId = data['data']['user']['id'];
+          if (kDebugMode) {
+            print('[API] Found user ID: $userId for $username');
+          }
+          return userId;
+        }
+      }
+      
+      if (kDebugMode) {
+        print('[API] No user ID found for $username');
+      }
+      return null;
+    } on DioException catch (e) {
+      if (e.error.toString().contains('Redirect loop detected')) {
+        if (kDebugMode) {
+          print('[API] Redirect loop detected, session may be expired for $username');
+        }
+        // Session is likely expired, we need to re-login
+        throw Exception('Session expired, please re-login');
+      }
+      if (kDebugMode) {
+        print('[API] Error getting user ID for $username: $e');
+      }
+      throw Exception('Failed to get user ID: $e');
+    } catch (e) {
+      if (kDebugMode) {
+        print('[API] Error getting user ID for $username: $e');
+      }
+      throw Exception('Failed to get user ID: $e');
     }
   }
 
@@ -535,7 +627,7 @@ class InstagramApiService {
         'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -543,6 +635,12 @@ class InstagramApiService {
         'Sec-Ch-Ua-Mobile': '?0',
         'Sec-Ch-Ua-Platform': '"Windows"',
       };
+
+      if (kDebugMode) {
+        print('[API] Submitting 2FA code: $twoFactorCode');
+        print('[API] 2FA data: $twoFactorData');
+        print('[API] 2FA identifier: $twoFactorIdentifier');
+      }
 
       // Submit 2FA code
       final twoFactorResponse = await _dio.post(
@@ -554,6 +652,11 @@ class InstagramApiService {
           validateStatus: (status) => status! < 500,
         ),
       );
+
+      if (kDebugMode) {
+        print('[API] 2FA response status: ${twoFactorResponse.statusCode}');
+        print('[API] 2FA response data: ${twoFactorResponse.data}');
+      }
 
       if (twoFactorResponse.statusCode == 200) {
         final responseData = twoFactorResponse.data;
@@ -582,11 +685,20 @@ class InstagramApiService {
           }
         } else {
           final errorMessage = responseData['message'] ?? responseData['error_type'] ?? '2FA verification failed';
+          if (kDebugMode) {
+            print('[API] 2FA verification failed. Response: $responseData');
+            print('[API] Error message: $errorMessage');
+          }
           throw Exception('2FA verification failed: $errorMessage');
         }
       } else {
         final responseData = twoFactorResponse.data;
         final errorMessage = responseData['message'] ?? responseData['error_type'] ?? '2FA request failed';
+        if (kDebugMode) {
+          print('[API] 2FA request failed with status ${twoFactorResponse.statusCode}');
+          print('[API] Response data: $responseData');
+          print('[API] Error message: $errorMessage');
+        }
         throw Exception('2FA request failed: $errorMessage');
       }
     } catch (e) {
@@ -598,7 +710,17 @@ class InstagramApiService {
   }
 
   Future<void> request2FASMS(String username, String twoFactorIdentifier) async {
+    // Check if we've requested SMS recently (within last 2 minutes)
+    if (_lastSMSRequest != null && 
+        DateTime.now().difference(_lastSMSRequest!).inMinutes < 2) {
+      if (kDebugMode) {
+        print('[API] SMS already requested recently, skipping to avoid rate limiting');
+      }
+      return;
+    }
+
     try {
+      _lastSMSRequest = DateTime.now();
       final csrfToken = await getCsrfToken();
       final response = await _dio.post(
         '/api/v1/accounts/send_two_factor_login_sms/',
@@ -622,7 +744,7 @@ class InstagramApiService {
             'Accept': '*/*',
             'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             'Sec-Fetch-Dest': 'empty',
             'Sec-Fetch-Mode': 'cors',
             'Sec-Fetch-Site': 'same-origin',

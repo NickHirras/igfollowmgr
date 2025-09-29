@@ -189,6 +189,16 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                       ),
                     ),
                     const PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, color: Colors.orange),
+                          SizedBox(width: 8),
+                          Text('Logout & Re-login', style: TextStyle(color: Colors.orange)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
                       value: 'delete',
                       child: Row(
                         children: [
@@ -245,6 +255,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
         break;
       case 'sync':
         provider.performSync();
+        break;
+      case 'logout':
+        _showLogoutDialog(context, provider, account);
         break;
       case 'delete':
         _showDeleteAccountDialog(context, provider, account);
@@ -448,6 +461,71 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           },
         );
       },
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context, InstagramProvider provider, InstagramAccount account) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout & Re-login'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('This will clear the session for @${account.username} and require you to log in again.'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info, color: Colors.orange[700], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This is useful when you get "session expired" errors. Your account data will be preserved.',
+                      style: TextStyle(
+                        color: Colors.orange[700],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await provider.logoutAccount(account);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Account logged out. Please log in again.'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
     );
   }
 

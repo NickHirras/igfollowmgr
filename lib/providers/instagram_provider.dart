@@ -3,7 +3,6 @@ import '../database/database_helper.dart';
 import '../models/instagram_account.dart';
 import '../models/instagram_user.dart';
 import '../models/profile.dart';
-import '../models/followers_response.dart';
 import '../services/instagram_api_service.dart';
 import '../services/sync_service.dart';
 
@@ -211,7 +210,6 @@ class InstagramProvider with ChangeNotifier {
     try {
       String? maxId;
       int totalSynced = 0;
-      const int maxPerRequest = 200;
       const int maxTotal = 10000; // Limit to prevent excessive API calls
 
       do {
@@ -258,7 +256,7 @@ class InstagramProvider with ChangeNotifier {
         // Add delay to avoid rate limiting
         await Future.delayed(const Duration(seconds: 2));
 
-      } while (maxId != null && totalSynced < maxTotal);
+           } while (totalSynced < maxTotal);
 
     } catch (e) {
       // Error syncing followers: $e
@@ -268,12 +266,19 @@ class InstagramProvider with ChangeNotifier {
   // Sync following
   Future<void> _syncFollowing(InstagramAccount account) async {
     try {
+      if (kDebugMode) {
+        print('[Provider] Starting sync following for ${account.username}');
+      }
+      
       String? maxId;
       int totalSynced = 0;
-      const int maxPerRequest = 200;
       const int maxTotal = 10000; // Limit to prevent excessive API calls
 
       do {
+        if (kDebugMode) {
+          print('[Provider] Fetching following batch ${totalSynced ~/ 200 + 1} for ${account.username}');
+        }
+        
         final response = await _apiService.getFollowing(account.username, maxId: maxId);
         final following = response.users;
         
@@ -281,7 +286,12 @@ class InstagramProvider with ChangeNotifier {
           print('[Provider] Fetched ${following.length} following for ${account.username}. Next maxId: ${response.nextMaxId}');
         }
         
-        if (following.isEmpty) break;
+        if (following.isEmpty) {
+          if (kDebugMode) {
+            print('[Provider] No more following to sync for ${account.username}');
+          }
+          break;
+        }
 
         for (final user in following) {
           final existingFollowing = await _dbHelper.getFollowingByUsername(account.id!, user.username);
@@ -309,24 +319,49 @@ class InstagramProvider with ChangeNotifier {
         totalSynced += following.length;
         maxId = response.nextMaxId;
 
+        if (kDebugMode) {
+          print('[Provider] Total synced so far: $totalSynced, nextMaxId: $maxId');
+        }
+
         // Break if we've reached the limit or no more data
         if (maxId == null || totalSynced >= maxTotal) {
+          if (kDebugMode) {
+            print('[Provider] Stopping sync following for ${account.username}. Reason: ${maxId == null ? "no more data" : "reached limit"}');
+          }
           break;
         }
 
         // Add delay to avoid rate limiting
+        if (kDebugMode) {
+          print('[Provider] Waiting 2 seconds before next batch...');
+        }
         await Future.delayed(const Duration(seconds: 2));
 
-      } while (maxId != null && totalSynced < maxTotal);
+           } while (totalSynced < maxTotal);
+
+      if (kDebugMode) {
+        print('[Provider] Completed sync following for ${account.username}. Total synced: $totalSynced');
+      }
 
     } catch (e) {
-      // Error syncing following: $e
+      if (kDebugMode) {
+        print('[Provider] Error syncing following for ${account.username}: $e');
+      }
     }
   }
 
   // Manual sync
   Future<void> performSync() async {
-    if (_currentAccount == null) return;
+    if (_currentAccount == null) {
+      if (kDebugMode) {
+        print('[Provider] No current account selected for sync');
+      }
+      return;
+    }
+    
+    if (kDebugMode) {
+      print('[Provider] Starting manual sync for ${_currentAccount!.username}');
+    }
     
     _setLoading(true);
     _clearError();
@@ -334,9 +369,20 @@ class InstagramProvider with ChangeNotifier {
     try {
       await _syncService.performManualSync();
       
+      if (kDebugMode) {
+        print('[Provider] Manual sync completed, reloading account data');
+      }
+      
       // Reload current account data
       await selectAccount(_currentAccount!);
+      
+      if (kDebugMode) {
+        print('[Provider] Account data reloaded. Followers: ${_followers.length}, Following: ${_following.length}');
+      }
     } catch (e) {
+      if (kDebugMode) {
+        print('[Provider] Manual sync failed: $e');
+      }
       _error = 'Sync failed: $e';
     } finally {
       _setLoading(false);
@@ -461,6 +507,51 @@ class InstagramProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _error = 'Failed to delete account: $e';
+      notifyListeners();
+    }
+  }
+
+  // Logout account (clear session but keep account data)
+  Future<void> logoutAccount(InstagramAccount account) async {
+    try {
+      if (kDebugMode) {
+        print('[Provider] Logging out account: ${account.username}');
+      }
+      
+      // Clear the session by updating the account with null session data
+      final updatedAccount = account.copyWith(
+        sessionId: null,
+        csrfToken: null,
+        lastSync: null,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _dbHelper.updateInstagramAccount(updatedAccount);
+      
+      // Update the account in our local list
+      final index = _accounts.indexWhere((a) => a.id == account.id);
+      if (index != -1) {
+        _accounts[index] = updatedAccount;
+      }
+      
+      // If this is the current account, clear the current data
+      if (_currentAccount?.id == account.id) {
+        _currentAccount = updatedAccount;
+        _currentProfile = null;
+        _followers.clear();
+        _following.clear();
+      }
+      
+      if (kDebugMode) {
+        print('[Provider] Account logged out successfully: ${account.username}');
+      }
+      
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) {
+        print('[Provider] Error logging out account: $e');
+      }
+      _error = 'Failed to logout account: $e';
       notifyListeners();
     }
   }
