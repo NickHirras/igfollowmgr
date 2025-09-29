@@ -8,7 +8,7 @@ part of 'instagram_user.dart';
 
 InstagramUser _$InstagramUserFromJson(Map<String, dynamic> json) =>
     InstagramUser(
-      id: (json['pk'] as num?)?.toInt(),
+      id: InstagramUser._idFromJson(json['pk']),
       username: json['username'] as String,
       fullName: json['full_name'] as String?,
       profilePictureUrl: json['profile_pic_url'] as String?,

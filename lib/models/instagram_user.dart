@@ -4,7 +4,7 @@ part 'instagram_user.g.dart';
 
 @JsonSerializable()
 class InstagramUser {
-  @JsonKey(name: 'pk')
+  @JsonKey(name: 'pk', fromJson: _idFromJson)
   final int? id;
   @JsonKey(name: 'username')
   final String username;
@@ -98,16 +98,26 @@ class InstagramUser {
     );
   }
 
+  static int? _idFromJson(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    if (value is num) return value.toInt();
+    return null;
+  }
+
   static int? _extractCount(dynamic value) {
     if (value == null) return null;
     if (value is Map && value['count'] != null) {
       final count = value['count'];
       if (count is int) return count;
       if (count is String) return int.tryParse(count);
+      if (count is num) return count.toInt();
       return null;
     }
     if (value is int) return value;
     if (value is String) return int.tryParse(value);
+    if (value is num) return value.toInt();
     return null;
   }
 }

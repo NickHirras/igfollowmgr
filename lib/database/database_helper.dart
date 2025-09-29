@@ -8,7 +8,7 @@ import '../models/profile.dart';
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   static Database? _database;
-  static const _dbVersion = 2; // Incremented version
+  static const _dbVersion = 3; // Incremented version to recreate with proper boolean types
 
   DatabaseHelper._internal();
 
@@ -252,6 +252,12 @@ class DatabaseHelper {
     final db = await database;
     final followerData = follower.toJson();
     followerData['account_id'] = accountId;
+    
+    // Convert boolean values to integers for SQLite
+    followerData['is_verified'] = follower.isVerified ? 1 : 0;
+    followerData['is_private'] = follower.isPrivate ? 1 : 0;
+    followerData['is_business'] = follower.isBusiness ? 1 : 0;
+    
     return await db.insert('followers', followerData);
   }
 
@@ -263,7 +269,14 @@ class DatabaseHelper {
       whereArgs: [accountId],
       orderBy: 'followed_at DESC',
     );
-    return List.generate(maps.length, (i) => InstagramUser.fromJson(maps[i]));
+    return List.generate(maps.length, (i) {
+      final map = maps[i];
+      // Convert integer values back to booleans for SQLite compatibility
+      map['is_verified'] = map['is_verified'] == 1;
+      map['is_private'] = map['is_private'] == 1;
+      map['is_business'] = map['is_business'] == 1;
+      return InstagramUser.fromJson(map);
+    });
   }
 
   Future<InstagramUser?> getFollowerByUsername(int accountId, String username) async {
@@ -274,7 +287,12 @@ class DatabaseHelper {
       whereArgs: [accountId, username],
     );
     if (maps.isNotEmpty) {
-      return InstagramUser.fromJson(maps.first);
+      final map = maps.first;
+      // Convert integer values back to booleans for SQLite compatibility
+      map['is_verified'] = map['is_verified'] == 1;
+      map['is_private'] = map['is_private'] == 1;
+      map['is_business'] = map['is_business'] == 1;
+      return InstagramUser.fromJson(map);
     }
     return null;
   }
@@ -283,6 +301,12 @@ class DatabaseHelper {
     final db = await database;
     final followerData = follower.toJson();
     followerData['account_id'] = accountId;
+    
+    // Convert boolean values to integers for SQLite
+    followerData['is_verified'] = follower.isVerified ? 1 : 0;
+    followerData['is_private'] = follower.isPrivate ? 1 : 0;
+    followerData['is_business'] = follower.isBusiness ? 1 : 0;
+    
     return await db.update(
       'followers',
       followerData,
@@ -305,6 +329,12 @@ class DatabaseHelper {
     final db = await database;
     final followingData = following.toJson();
     followingData['account_id'] = accountId;
+    
+    // Convert boolean values to integers for SQLite
+    followingData['is_verified'] = following.isVerified ? 1 : 0;
+    followingData['is_private'] = following.isPrivate ? 1 : 0;
+    followingData['is_business'] = following.isBusiness ? 1 : 0;
+    
     return await db.insert('following', followingData);
   }
 
@@ -316,7 +346,14 @@ class DatabaseHelper {
       whereArgs: [accountId],
       orderBy: 'following_at DESC',
     );
-    return List.generate(maps.length, (i) => InstagramUser.fromJson(maps[i]));
+    return List.generate(maps.length, (i) {
+      final map = maps[i];
+      // Convert integer values back to booleans for SQLite compatibility
+      map['is_verified'] = map['is_verified'] == 1;
+      map['is_private'] = map['is_private'] == 1;
+      map['is_business'] = map['is_business'] == 1;
+      return InstagramUser.fromJson(map);
+    });
   }
 
   Future<InstagramUser?> getFollowingByUsername(int accountId, String username) async {
@@ -327,7 +364,12 @@ class DatabaseHelper {
       whereArgs: [accountId, username],
     );
     if (maps.isNotEmpty) {
-      return InstagramUser.fromJson(maps.first);
+      final map = maps.first;
+      // Convert integer values back to booleans for SQLite compatibility
+      map['is_verified'] = map['is_verified'] == 1;
+      map['is_private'] = map['is_private'] == 1;
+      map['is_business'] = map['is_business'] == 1;
+      return InstagramUser.fromJson(map);
     }
     return null;
   }
@@ -336,6 +378,12 @@ class DatabaseHelper {
     final db = await database;
     final followingData = following.toJson();
     followingData['account_id'] = accountId;
+    
+    // Convert boolean values to integers for SQLite
+    followingData['is_verified'] = following.isVerified ? 1 : 0;
+    followingData['is_private'] = following.isPrivate ? 1 : 0;
+    followingData['is_business'] = following.isBusiness ? 1 : 0;
+    
     return await db.update(
       'following',
       followingData,

@@ -130,6 +130,9 @@ class SyncService {
   // Sync followers
   Future<void> _syncFollowers(InstagramAccount account) async {
     try {
+      if (kDebugMode) {
+        print('[SyncService] Starting followers sync for ${account.username}');
+      }
       String? maxId;
       int totalSynced = 0;
       const int maxTotal = 10000; // Limit to prevent excessive API calls
@@ -145,30 +148,46 @@ class SyncService {
         if (followers.isEmpty) break;
 
         for (final follower in followers) {
-          final existingFollower = await _dbHelper.getFollowerByUsername(account.id!, follower.username);
-          
-          if (existingFollower != null) {
-            // Update existing follower
-            final updatedFollower = follower.copyWith(
-              id: existingFollower.id,
-              followedAt: existingFollower.followedAt,
-              createdAt: existingFollower.createdAt,
-              updatedAt: DateTime.now(),
-            );
-            await _dbHelper.updateFollower(updatedFollower, account.id!);
-          } else {
-            // Add new follower
-            final newFollower = follower.copyWith(
-              followedAt: DateTime.now(), // Approximate time
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
-            );
-            await _dbHelper.insertFollower(newFollower, account.id!);
+          try {
+            final existingFollower = await _dbHelper.getFollowerByUsername(account.id!, follower.username);
+            
+            if (existingFollower != null) {
+              // Update existing follower
+              final updatedFollower = follower.copyWith(
+                id: existingFollower.id,
+                followedAt: existingFollower.followedAt,
+                createdAt: existingFollower.createdAt,
+                updatedAt: DateTime.now(),
+              );
+              await _dbHelper.updateFollower(updatedFollower, account.id!);
+              if (kDebugMode) {
+                print('[SyncService] Updated follower: ${follower.username}');
+              }
+            } else {
+              // Add new follower
+              final newFollower = follower.copyWith(
+                followedAt: DateTime.now(), // Approximate time
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              );
+              await _dbHelper.insertFollower(newFollower, account.id!);
+              if (kDebugMode) {
+                print('[SyncService] Inserted new follower: ${follower.username}');
+              }
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('[SyncService] Error processing follower ${follower.username}: $e');
+            }
           }
         }
 
         totalSynced += followers.length;
         maxId = response.nextMaxId;
+
+        if (kDebugMode) {
+          print('[SyncService] Total followers synced so far: $totalSynced');
+        }
 
         // Break if we've reached the limit or no more data
         if (maxId == null || totalSynced >= maxTotal) {
@@ -180,14 +199,22 @@ class SyncService {
 
            } while (totalSynced < maxTotal);
 
+      if (kDebugMode) {
+        print('[SyncService] Completed followers sync for ${account.username}. Total synced: $totalSynced');
+      }
     } catch (e) {
-      // Error syncing followers: $e
+      if (kDebugMode) {
+        print('[SyncService] Error syncing followers for ${account.username}: $e');
+      }
     }
   }
 
   // Sync following
   Future<void> _syncFollowing(InstagramAccount account) async {
     try {
+      if (kDebugMode) {
+        print('[SyncService] Starting following sync for ${account.username}');
+      }
       String? maxId;
       int totalSynced = 0;
       const int maxTotal = 10000; // Limit to prevent excessive API calls
@@ -203,30 +230,46 @@ class SyncService {
         if (following.isEmpty) break;
 
         for (final user in following) {
-          final existingFollowing = await _dbHelper.getFollowingByUsername(account.id!, user.username);
-          
-          if (existingFollowing != null) {
-            // Update existing following
-            final updatedFollowing = user.copyWith(
-              id: existingFollowing.id,
-              followingAt: existingFollowing.followingAt,
-              createdAt: existingFollowing.createdAt,
-              updatedAt: DateTime.now(),
-            );
-            await _dbHelper.updateFollowing(updatedFollowing, account.id!);
-          } else {
-            // Add new following
-            final newFollowing = user.copyWith(
-              followingAt: DateTime.now(), // Approximate time
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
-            );
-            await _dbHelper.insertFollowing(newFollowing, account.id!);
+          try {
+            final existingFollowing = await _dbHelper.getFollowingByUsername(account.id!, user.username);
+            
+            if (existingFollowing != null) {
+              // Update existing following
+              final updatedFollowing = user.copyWith(
+                id: existingFollowing.id,
+                followingAt: existingFollowing.followingAt,
+                createdAt: existingFollowing.createdAt,
+                updatedAt: DateTime.now(),
+              );
+              await _dbHelper.updateFollowing(updatedFollowing, account.id!);
+              if (kDebugMode) {
+                print('[SyncService] Updated following: ${user.username}');
+              }
+            } else {
+              // Add new following
+              final newFollowing = user.copyWith(
+                followingAt: DateTime.now(), // Approximate time
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              );
+              await _dbHelper.insertFollowing(newFollowing, account.id!);
+              if (kDebugMode) {
+                print('[SyncService] Inserted new following: ${user.username}');
+              }
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('[SyncService] Error processing following ${user.username}: $e');
+            }
           }
         }
 
         totalSynced += following.length;
         maxId = response.nextMaxId;
+
+        if (kDebugMode) {
+          print('[SyncService] Total following synced so far: $totalSynced');
+        }
 
         // Break if we've reached the limit or no more data
         if (maxId == null || totalSynced >= maxTotal) {
@@ -238,8 +281,13 @@ class SyncService {
 
            } while (totalSynced < maxTotal);
 
+      if (kDebugMode) {
+        print('[SyncService] Completed following sync for ${account.username}. Total synced: $totalSynced');
+      }
     } catch (e) {
-      // Error syncing following: $e
+      if (kDebugMode) {
+        print('[SyncService] Error syncing following for ${account.username}: $e');
+      }
     }
   }
 
