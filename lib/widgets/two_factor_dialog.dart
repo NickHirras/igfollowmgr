@@ -122,6 +122,13 @@ class _TwoFactorDialogState extends State<TwoFactorDialog> {
               ),
               counterText: '',
               prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: _isLoading 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null,
             ),
             onSubmitted: (_) => _submit2FACode(),
           ),
@@ -187,30 +194,43 @@ class _TwoFactorDialogState extends State<TwoFactorDialog> {
           if (_isLoading) ...[
             const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.orange[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange[200]!),
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue[200]!),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.orange[700]!),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Verifying 2FA code...',
-                      style: TextStyle(
-                        color: Colors.orange[700],
-                        fontSize: 12,
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[700]!),
+                        ),
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Verifying 2FA code...',
+                          style: TextStyle(
+                            color: Colors.blue[700],
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please wait while we verify your code...',
+                    style: TextStyle(
+                      color: Colors.blue[600],
+                      fontSize: 12,
                     ),
                   ),
                 ],
@@ -234,13 +254,33 @@ class _TwoFactorDialogState extends State<TwoFactorDialog> {
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _submit2FACode,
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            minimumSize: const Size(120, 48),
+          ),
           child: _isLoading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Verifying...',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    ),
+                  ],
                 )
-              : const Text('Verify'),
+              : const Text(
+                  'Verify',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
         ),
       ],
     );

@@ -279,10 +279,17 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
             TextField(
               controller: usernameController,
               enabled: !provider.isLoading,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Username',
-                prefixIcon: Icon(Icons.person),
+                prefixIcon: const Icon(Icons.person),
                 hintText: 'Enter your Instagram username',
+                suffixIcon: provider.isLoading 
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
               ),
             ),
             const SizedBox(height: 16),
@@ -323,30 +330,43 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
             if (provider.isLoading) ...[
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange[200]!),
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue[200]!),
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.orange[700]!),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Logging in to Instagram...',
-                        style: TextStyle(
-                          color: Colors.orange[700],
-                          fontSize: 12,
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[700]!),
+                          ),
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Signing in to Instagram...',
+                            style: TextStyle(
+                              color: Colors.blue[700],
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'This may take a few moments. Please wait...',
+                      style: TextStyle(
+                        color: Colors.blue[600],
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -415,20 +435,33 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                 }
               }
             },
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              minimumSize: const Size(120, 48),
+            ),
             child: provider.isLoading 
-                ? const Row(
+                ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
                       ),
-                      SizedBox(width: 8),
-                      Text('Logging in...'),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Signing in...',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                      ),
                     ],
                   )
-                : const Text('Add Account'),
+                : const Text(
+                    'Sign In',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
           ),
         ],
       ),
