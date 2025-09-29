@@ -136,7 +136,12 @@ class SyncService {
       const int maxTotal = 10000; // Limit to prevent excessive API calls
 
       do {
-        final followers = await _apiService.getFollowers(account.username, maxId: maxId);
+        final response = await _apiService.getFollowers(account.username, maxId: maxId);
+        final followers = response.users;
+        
+        if (kDebugMode) {
+          print('[SyncService] Fetched ${followers.length} followers for ${account.username}. Next maxId: ${response.nextMaxId}');
+        }
         
         if (followers.isEmpty) break;
 
@@ -164,10 +169,10 @@ class SyncService {
         }
 
         totalSynced += followers.length;
-        maxId = followers.isNotEmpty ? followers.last.username : null;
+        maxId = response.nextMaxId;
 
         // Break if we've reached the limit or no more data
-        if (followers.length < maxPerRequest || totalSynced >= maxTotal) {
+        if (maxId == null || totalSynced >= maxTotal) {
           break;
         }
 
@@ -190,7 +195,12 @@ class SyncService {
       const int maxTotal = 10000; // Limit to prevent excessive API calls
 
       do {
-        final following = await _apiService.getFollowing(account.username, maxId: maxId);
+        final response = await _apiService.getFollowing(account.username, maxId: maxId);
+        final following = response.users;
+        
+        if (kDebugMode) {
+          print('[SyncService] Fetched ${following.length} following for ${account.username}. Next maxId: ${response.nextMaxId}');
+        }
         
         if (following.isEmpty) break;
 
@@ -218,10 +228,10 @@ class SyncService {
         }
 
         totalSynced += following.length;
-        maxId = following.isNotEmpty ? following.last.username : null;
+        maxId = response.nextMaxId;
 
         // Break if we've reached the limit or no more data
-        if (following.length < maxPerRequest || totalSynced >= maxTotal) {
+        if (maxId == null || totalSynced >= maxTotal) {
           break;
         }
 

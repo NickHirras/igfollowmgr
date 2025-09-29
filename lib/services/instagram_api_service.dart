@@ -6,6 +6,7 @@ import 'package:cookie_jar/cookie_jar.dart';
 import '../models/instagram_account.dart';
 import '../models/instagram_user.dart';
 import '../models/profile.dart';
+import '../models/followers_response.dart';
 
 // Custom exception for 2FA requirement
 class TwoFactorRequiredException implements Exception {
@@ -271,7 +272,7 @@ class InstagramApiService {
   }
 
   // Get followers list
-  Future<List<InstagramUser>> getFollowers(String username, {String? maxId}) async {
+  Future<FollowersResponse> getFollowers(String username, {String? maxId}) async {
     try {
       final url = '/api/v1/friendships/$username/followers/';
       final queryParams = <String, dynamic>{
@@ -286,34 +287,21 @@ class InstagramApiService {
       final response = await _dio.get(url, queryParameters: queryParams);
       
       if (response.statusCode == 200) {
-        final data = response.data;
-        final users = <InstagramUser>[];
-        
-        if (data['users'] != null) {
-          for (final userData in data['users']) {
-            final user = _parseInstagramUser(userData);
-            if (user != null) {
-              users.add(user);
-            }
-          }
-        }
-        
-        return users;
+        return FollowersResponse.fromJson(response.data);
       }
       
-      return [];
+      return FollowersResponse(users: [], nextMaxId: null);
     } catch (e) {
       throw Exception('Failed to get followers: $e');
     }
   }
 
   // Get following list
-  Future<List<InstagramUser>> getFollowing(String username, {String? maxId}) async {
+  Future<FollowersResponse> getFollowing(String username, {String? maxId}) async {
     try {
       final url = '/api/v1/friendships/$username/following/';
       final queryParams = <String, dynamic>{
         'count': '200',
-        'search_surface': 'follow_list_page',
       };
       
       if (maxId != null) {
@@ -323,22 +311,10 @@ class InstagramApiService {
       final response = await _dio.get(url, queryParameters: queryParams);
       
       if (response.statusCode == 200) {
-        final data = response.data;
-        final users = <InstagramUser>[];
-        
-        if (data['users'] != null) {
-          for (final userData in data['users']) {
-            final user = _parseInstagramUser(userData);
-            if (user != null) {
-              users.add(user);
-            }
-          }
-        }
-        
-        return users;
+        return FollowersResponse.fromJson(response.data);
       }
       
-      return [];
+      return FollowersResponse(users: [], nextMaxId: null);
     } catch (e) {
       throw Exception('Failed to get following: $e');
     }
